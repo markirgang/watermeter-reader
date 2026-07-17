@@ -2,6 +2,10 @@
 let tenants = [];
 let readings = [];
 let editingTenantId = null;
+let customBuildings = [];
+let customTenantNames = [];
+let customAddresses = [];
+let modalMode = ''; // 'building', 'tenantName', 'address'
 
 // DOM Elements - Tabs
 const tabButtons = document.querySelectorAll('.tab-btn');
@@ -24,8 +28,23 @@ const cancelEditTenantBtn = document.getElementById('cancelEditTenantBtn');
 const tenantTableBody = document.getElementById('tenantTableBody');
 const tenantSearchInput = document.getElementById('tenantSearchInput');
 
+// DOM Elements - Modal & Add Buttons
+const addOptionModal = document.getElementById('addOptionModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalInputLabel = document.getElementById('modalInputLabel');
+const modalInputIcon = document.getElementById('modalInputIcon');
+const modalInputValue = document.getElementById('modalInputValue');
+const modalForm = document.getElementById('modalForm');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelModalBtn = document.getElementById('cancelModalBtn');
+
+const addBuildingBtn = document.getElementById('addBuildingBtn');
+const addTenantBtn = document.getElementById('addTenantBtn');
+const addAddressBtn = document.getElementById('addAddressBtn');
+
 // DOM Elements - Readings Tab
 const readingForm = document.getElementById('readingForm');
+const readingBuildingSelect = document.getElementById('readingBuildingSelect');
 const readingTenantSelect = document.getElementById('readingTenantSelect');
 const refBuilding = document.getElementById('refBuilding');
 const refSubmeterId = document.getElementById('refSubmeterId');
@@ -57,17 +76,48 @@ const backupFileInput = document.getElementById('backupFileInput');
 // DOM Elements - Toast Container
 const toastContainer = document.getElementById('toastContainer');
 
+// Flatpickr instances
+let tenantInitialDatePicker;
+let readingDatePicker;
+let takeoffStartDatePicker;
+let takeoffEndDatePicker;
+
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Set default dates
     const today = new Date().toISOString().split('T')[0];
-    tenantInitialDateInput.value = today;
-    readingDateInput.value = today;
-    
-    // Set default takeoff date range (current month)
     const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-    takeoffStartDate.value = firstDayOfMonth;
-    takeoffEndDate.value = today;
+
+    // Initialize Flatpickr calendar widgets
+    tenantInitialDatePicker = flatpickr("#tenantInitialDate", {
+        defaultDate: today,
+        dateFormat: "Y-m-d",
+        theme: "dark"
+    });
+    
+    readingDatePicker = flatpickr("#readingDate", {
+        defaultDate: today,
+        dateFormat: "Y-m-d",
+        theme: "dark",
+        clickOpens: false // Start disabled
+    });
+
+    takeoffStartDatePicker = flatpickr("#takeoffStartDate", {
+        defaultDate: firstDayOfMonth,
+        dateFormat: "Y-m-d",
+        theme: "dark",
+        onChange: function() {
+            renderTakeoff();
+        }
+    });
+
+    takeoffEndDatePicker = flatpickr("#takeoffEndDate", {
+        defaultDate: today,
+        dateFormat: "Y-m-d",
+        theme: "dark",
+        onChange: function() {
+            renderTakeoff();
+        }
+    });
 
     // Load data from LocalStorage
     loadData();
@@ -87,13 +137,22 @@ function loadData() {
     try {
         const storedTenants = localStorage.getItem('aquameter_tenants');
         const storedReadings = localStorage.getItem('aquameter_readings');
+        const storedCustomBuildings = localStorage.getItem('aquameter_custom_buildings');
+        const storedCustomTenantNames = localStorage.getItem('aquameter_custom_tenant_names');
+        const storedCustomAddresses = localStorage.getItem('aquameter_custom_addresses');
         
         tenants = storedTenants ? JSON.parse(storedTenants) : [];
         readings = storedReadings ? JSON.parse(storedReadings) : [];
+        customBuildings = storedCustomBuildings ? JSON.parse(storedCustomBuildings) : [];
+        customTenantNames = storedCustomTenantNames ? JSON.parse(storedCustomTenantNames) : [];
+        customAddresses = storedCustomAddresses ? JSON.parse(storedCustomAddresses) : [];
     } catch (e) {
         showToast('Error loading saved data from browser storage.', 'error');
         tenants = [];
         readings = [];
+        customBuildings = [];
+        customTenantNames = [];
+        customAddresses = [];
     }
 }
 
@@ -101,6 +160,9 @@ function saveData() {
     try {
         localStorage.setItem('aquameter_tenants', JSON.stringify(tenants));
         localStorage.setItem('aquameter_readings', JSON.stringify(readings));
+        localStorage.setItem('aquameter_custom_buildings', JSON.stringify(customBuildings));
+        localStorage.setItem('aquameter_custom_tenant_names', JSON.stringify(customTenantNames));
+        localStorage.setItem('aquameter_custom_addresses', JSON.stringify(customAddresses));
     } catch (e) {
         showToast('Storage limit exceeded! Could not save data.', 'error');
     }
@@ -130,7 +192,7 @@ function setupTabs() {
 
             // Trigger specific updates when switching tabs
             if (targetTab === 'readings') {
-                populateTenantDropdown();
+                populateReadingBuildingDropdown();
             } else if (targetTab === 'takeoff') {
                 renderTakeoff();
             }
@@ -144,6 +206,40 @@ function setupEventListeners() {
     tenantForm.addEventListener('submit', handleTenantSubmit);
     cancelEditTenantBtn.addEventListener('click', resetTenantForm);
     tenantSearchInput.addEventListener('input', renderTenants);
+
+    // Modal buttons & submission
+    addBuildingBtn.addEventListener('click', () => openModal('building'));
+    addTenantBtn.addEventListener('click', () => openModal('tenantName'));
+    addAddressBtn.addEventListener('click', () => openModal('address'));
+    
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelModalBtn.addEventListener('click', closeModal);
+    
+    // Close modal if clicking outside the modal-container
+    addOptionModal.addEventListener('click', (e) => {
+        if (e.target === addOptionModal) {
+            closeModal();
+        }
+    });
+    
+    modalForm.addEventListener('submit', handleModalSubmit);
+
+    // Auto-generate submeter on address change
+    tenantAddressInput.addEventListener('change', () => {
+        if (!tenantSubmeterInput.value) {
+            tenantSubmeterInput.value = generateSubmeterId(tenantAddressInput.value);
+        }
+    });
+
+    // Building filter for tenant form
+    tenantBuildingInput.addEventListener('change', () => {
+        populateTenantFormDropdowns();
+    });
+
+    // Building filter for readings tab
+    readingBuildingSelect.addEventListener('change', () => {
+        populateTenantDropdown(readingBuildingSelect.value);
+    });
 
     // Reading form submission
     readingTenantSelect.addEventListener('change', handleReadingTenantChange);
@@ -286,7 +382,11 @@ function editTenant(id) {
     tenantUnitSelect.value = tenant.unitType;
     tenantRateInput.value = tenant.rate;
     tenantInitialReadingInput.value = tenant.initialReading;
-    tenantInitialDateInput.value = tenant.initialDate;
+    if (tenantInitialDatePicker) {
+        tenantInitialDatePicker.setDate(tenant.initialDate);
+    } else {
+        tenantInitialDateInput.value = tenant.initialDate;
+    }
 
     // Toggle forms visual indicators
     tenantFormTitle.innerHTML = `<i data-lucide="edit-3"></i> Edit Tenant`;
@@ -325,8 +425,37 @@ function resetTenantForm() {
     cancelEditTenantBtn.style.display = 'none';
     
     const today = new Date().toISOString().split('T')[0];
-    tenantInitialDateInput.value = today;
+    if (tenantInitialDatePicker) {
+        tenantInitialDatePicker.setDate(today);
+    } else {
+        tenantInitialDateInput.value = today;
+    }
     lucide.createIcons();
+}
+
+function getTenantReadingDetails(tenant) {
+    const tenantReadings = readings
+        .filter(r => r.tenantId === tenant.id)
+        .sort((a, b) => new Date(a.date) - new Date(b.date)); // chronological order
+        
+    let prevReading = tenant.initialReading;
+    let currReading = tenant.currentReading;
+    
+    if (tenantReadings.length > 0) {
+        currReading = tenantReadings[tenantReadings.length - 1].currReading;
+        if (tenantReadings.length > 1) {
+            prevReading = tenantReadings[tenantReadings.length - 2].currReading;
+        } else {
+            prevReading = tenant.initialReading;
+        }
+    }
+    
+    const usage = currReading - prevReading;
+    return {
+        prevReading,
+        currReading,
+        usage
+    };
 }
 
 function renderTenants() {
@@ -343,7 +472,7 @@ function renderTenants() {
     if (filteredTenants.length === 0) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="7">
+                <td colspan="10">
                     <div class="empty-state">
                         <i data-lucide="users" style="width: 48px; height: 48px;"></i>
                         <p>${tenants.length === 0 ? 'No tenants registered yet. Add one using the form on the left!' : 'No matching tenants found.'}</p>
@@ -356,6 +485,7 @@ function renderTenants() {
     }
 
     filteredTenants.forEach(tenant => {
+        const { prevReading, currReading, usage } = getTenantReadingDetails(tenant);
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
@@ -364,10 +494,12 @@ function renderTenants() {
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
             <td><span class="badge badge-${tenant.unitType}">${tenant.unitType.toUpperCase()}</span></td>
             <td>$${tenant.rate.toFixed(4)}</td>
+            <td>${prevReading.toFixed(2)}</td>
             <td>
-                <div style="font-weight: 600;">${tenant.currentReading.toFixed(2)}</div>
+                <div style="font-weight: 600;">${currReading.toFixed(2)}</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${formatDate(tenant.currentDate)}</div>
             </td>
+            <td><strong style="color: ${usage > 0 ? 'var(--primary)' : 'var(--text-muted)'};">${usage.toFixed(2)}</strong></td>
             <td>
                 <div class="action-btn-group" style="justify-content: center;">
                     <button class="action-btn edit" onclick="editTenant('${tenant.id}')" title="Edit Tenant">
@@ -386,21 +518,55 @@ function renderTenants() {
 }
 
 // --- READINGS LOGIC ---
-function populateTenantDropdown() {
+function populateReadingBuildingDropdown() {
+    const currentBuilding = readingBuildingSelect.value;
+    readingBuildingSelect.innerHTML = '<option value="" disabled selected>Choose a building...</option>';
+    
+    const buildingSet = new Set();
+    tenants.forEach(t => { if (t.building) buildingSet.add(t.building); });
+    const sortedBuildings = Array.from(buildingSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    
+    sortedBuildings.forEach(building => {
+        const option = document.createElement('option');
+        option.value = building;
+        option.textContent = building;
+        readingBuildingSelect.appendChild(option);
+    });
+    
+    if (currentBuilding && sortedBuildings.includes(currentBuilding)) {
+        readingBuildingSelect.value = currentBuilding;
+        populateTenantDropdown(currentBuilding);
+    } else {
+        readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
+        readingTenantSelect.disabled = true;
+        resetReadingFormFields();
+    }
+}
+
+function populateTenantDropdown(selectedBuilding) {
     const currentSelection = readingTenantSelect.value;
     readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
     
-    // Sort tenants alphabetically
-    const sortedTenants = [...tenants].sort((a, b) => a.name.localeCompare(b.name));
+    if (!selectedBuilding) {
+        readingTenantSelect.disabled = true;
+        resetReadingFormFields();
+        return;
+    }
+    
+    readingTenantSelect.disabled = false;
+    
+    // Filter tenants by building
+    const filteredTenants = tenants.filter(t => t.building === selectedBuilding);
+    const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
     
     sortedTenants.forEach(tenant => {
         const option = document.createElement('option');
         option.value = tenant.id;
-        option.textContent = `${tenant.name} [${tenant.building || 'N/A'}] (${tenant.submeter})`;
+        option.textContent = `${tenant.name} (${tenant.submeter})`;
         readingTenantSelect.appendChild(option);
     });
 
-    if (currentSelection && tenants.some(t => t.id === currentSelection)) {
+    if (currentSelection && filteredTenants.some(t => t.id === currentSelection)) {
         readingTenantSelect.value = currentSelection;
         handleReadingTenantChange();
     } else {
@@ -431,6 +597,15 @@ function handleReadingTenantChange() {
     readingCommentsInput.disabled = false;
     saveReadingBtn.disabled = false;
 
+    if (readingDatePicker) {
+        readingDatePicker.set('clickOpens', true);
+        readingDatePicker.set('minDate', tenant.currentDate);
+        const selected = readingDatePicker.selectedDates[0];
+        if (!selected || selected < new Date(tenant.currentDate)) {
+            readingDatePicker.setDate(tenant.currentDate);
+        }
+    }
+
     // Set min reading and date validation details
     readingCurrentInput.min = tenant.currentReading;
     readingDateInput.min = tenant.currentDate;
@@ -450,7 +625,14 @@ function resetReadingFormFields() {
     saveReadingBtn.disabled = true;
 
     readingForm.reset();
-    readingDateInput.value = new Date().toISOString().split('T')[0];
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (readingDatePicker) {
+        readingDatePicker.set('clickOpens', false);
+        readingDatePicker.setDate(today);
+    } else {
+        readingDateInput.value = today;
+    }
 }
 
 function handleReadingSubmit(e) {
@@ -501,7 +683,7 @@ function handleReadingSubmit(e) {
 
     saveData();
     resetReadingFormFields();
-    populateTenantDropdown(); // Redraw references
+    populateReadingBuildingDropdown(); // Redraw references
     renderAll();
     showToast(`Reading recorded. Consumption: ${consumed.toFixed(2)} ${tenant.unitType.toUpperCase()}.`, 'success');
 }
@@ -903,10 +1085,144 @@ function handleImportBackup(e) {
     reader.readAsText(file);
 }
 
+// --- DROPDOWNS & MODAL ENGINE ---
+function populateTenantFormDropdowns() {
+    const selectedBuilding = tenantBuildingInput.value;
+
+    const buildingsSet = new Set();
+    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
+    customBuildings.forEach(b => { if (b) buildingsSet.add(b); });
+    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    
+    const namesSet = new Set();
+    const addressesSet = new Set();
+
+    // Filter store names and addresses by the currently selected building, if any
+    tenants.forEach(t => {
+        if (!selectedBuilding || t.building === selectedBuilding) {
+            if (t.name) namesSet.add(t.name);
+            if (t.address) addressesSet.add(t.address);
+        }
+    });
+
+    // Custom items added via plus button are always visible so they can be assigned
+    customTenantNames.forEach(n => { if (n) namesSet.add(n); });
+    customAddresses.forEach(a => { if (a) addressesSet.add(a); });
+
+    const sortedNames = Array.from(namesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+
+    const updateSelect = (selectEl, optionsList, defaultText) => {
+        const currentValue = selectEl.value;
+        selectEl.innerHTML = `<option value="" disabled selected>${defaultText}</option>`;
+        
+        optionsList.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            selectEl.appendChild(option);
+        });
+        
+        if (currentValue && optionsList.includes(currentValue)) {
+            selectEl.value = currentValue;
+        }
+    };
+
+    updateSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
+    updateSelect(tenantNameInput, sortedNames, 'Select Store...');
+    updateSelect(tenantAddressInput, sortedAddresses, 'Select Address...');
+}
+
+function openModal(mode) {
+    modalMode = mode;
+    modalInputValue.value = '';
+    
+    let title = '';
+    let label = '';
+    let icon = '';
+    let placeholder = '';
+    
+    if (mode === 'building') {
+        title = 'Add Building / Property';
+        label = 'Building / Property Name *';
+        icon = 'building';
+        placeholder = 'e.g., 4026-4034 White Plains Rd';
+    } else if (mode === 'tenantName') {
+        title = 'Add Store / Tenant Name';
+        label = 'Store / Tenant Name *';
+        icon = 'store';
+        placeholder = 'e.g., Starbucks Coffee';
+    } else if (mode === 'address') {
+        title = 'Add Unit Address';
+        label = 'Unit Address *';
+        icon = 'map-pin';
+        placeholder = 'e.g., 104 Main St, Suite B';
+    }
+    
+    modalTitle.innerHTML = `<i data-lucide="${icon}"></i> ${title}`;
+    modalInputLabel.textContent = label;
+    modalInputIcon.setAttribute('data-lucide', icon);
+    modalInputValue.placeholder = placeholder;
+    
+    addOptionModal.classList.add('active');
+    addOptionModal.setAttribute('aria-hidden', 'false');
+    
+    lucide.createIcons();
+    
+    setTimeout(() => modalInputValue.focus(), 100);
+}
+
+function closeModal() {
+    addOptionModal.classList.remove('active');
+    addOptionModal.setAttribute('aria-hidden', 'true');
+    modalMode = '';
+    modalInputValue.value = '';
+}
+
+function handleModalSubmit(e) {
+    e.preventDefault();
+    
+    const value = modalInputValue.value.trim();
+    if (!value) return;
+    
+    if (modalMode === 'building') {
+        if (!customBuildings.includes(value)) {
+            customBuildings.push(value);
+            saveData();
+        }
+        populateTenantFormDropdowns();
+        tenantBuildingInput.value = value;
+        populateTenantFormDropdowns(); // Re-run to filter other dropdowns for this building
+        showToast(`Property "${value}" added successfully.`, 'success');
+    } else if (modalMode === 'tenantName') {
+        if (!customTenantNames.includes(value)) {
+            customTenantNames.push(value);
+            saveData();
+        }
+        populateTenantFormDropdowns();
+        tenantNameInput.value = value;
+        showToast(`Tenant "${value}" added successfully.`, 'success');
+    } else if (modalMode === 'address') {
+        if (!customAddresses.includes(value)) {
+            customAddresses.push(value);
+            saveData();
+        }
+        populateTenantFormDropdowns();
+        tenantAddressInput.value = value;
+        if (!tenantSubmeterInput.value) {
+            tenantSubmeterInput.value = generateSubmeterId(value);
+        }
+        showToast(`Address "${value}" added successfully.`, 'success');
+    }
+    
+    closeModal();
+}
+
 // --- RENDERING MANAGER ---
 function renderAll() {
+    populateTenantFormDropdowns();
     renderTenants();
-    populateTenantDropdown();
+    populateReadingBuildingDropdown();
     renderReadings();
     renderTakeoff();
 }

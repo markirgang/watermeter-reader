@@ -10,6 +10,10 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Flatpickr for Calendar Widget -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="app-container">
@@ -54,25 +58,46 @@
                         
                         <div class="form-group">
                             <label for="tenantBuilding">Building / Property *</label>
-                            <div class="input-icon-wrapper">
-                                <i data-lucide="building" class="input-icon"></i>
-                                <input type="text" id="tenantBuilding" placeholder="e.g., 4026-4034 White Plains Rd" required>
+                            <div class="input-with-button">
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="building" class="input-icon"></i>
+                                    <select id="tenantBuilding" required>
+                                        <option value="" disabled selected>Select Property...</option>
+                                    </select>
+                                </div>
+                                <button type="button" id="addBuildingBtn" class="btn btn-secondary btn-icon" title="Add New Property">
+                                    <i data-lucide="plus"></i>
+                                </button>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="tenantName">Store / Tenant Name *</label>
-                            <div class="input-icon-wrapper">
-                                <i data-lucide="store" class="input-icon"></i>
-                                <input type="text" id="tenantName" placeholder="e.g., Starbucks Coffee" required>
+                            <div class="input-with-button">
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="store" class="input-icon"></i>
+                                    <select id="tenantName" required>
+                                        <option value="" disabled selected>Select Store...</option>
+                                    </select>
+                                </div>
+                                <button type="button" id="addTenantBtn" class="btn btn-secondary btn-icon" title="Add New Tenant Name">
+                                    <i data-lucide="plus"></i>
+                                </button>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="tenantAddress">Unit Address *</label>
-                            <div class="input-icon-wrapper">
-                                <i data-lucide="map-pin" class="input-icon"></i>
-                                <input type="text" id="tenantAddress" placeholder="e.g., 104 Main St, Suite B" required>
+                            <div class="input-with-button">
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="map-pin" class="input-icon"></i>
+                                    <select id="tenantAddress" required>
+                                        <option value="" disabled selected>Select Address...</option>
+                                    </select>
+                                </div>
+                                <button type="button" id="addAddressBtn" class="btn btn-secondary btn-icon" title="Add New Address">
+                                    <i data-lucide="plus"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -152,7 +177,9 @@
                                     <th>Submeter ID</th>
                                     <th>Unit</th>
                                     <th>Rate</th>
+                                    <th>Prev Read</th>
                                     <th>Current Read</th>
+                                    <th>Usage</th>
                                     <th style="width: 100px; text-align: center;">Actions</th>
                                 </tr>
                             </thead>
@@ -173,11 +200,25 @@
                     <h2 class="card-title"><i data-lucide="pen-tool"></i> Log New Meter Reading</h2>
                     <form id="readingForm">
                         <div class="form-group">
+                            <label for="readingBuildingSelect">Select Building / Property *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="building" class="input-icon"></i>
+                                <select id="readingBuildingSelect" required>
+                                    <option value="" disabled selected>Choose a building...</option>
+                                    <!-- Dynamic options -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label for="readingTenantSelect">Select Tenant *</label>
-                            <select id="readingTenantSelect" required>
-                                <option value="" disabled selected>Choose a tenant...</option>
-                                <!-- Dynamic options -->
-                            </select>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="store" class="input-icon"></i>
+                                <select id="readingTenantSelect" required disabled>
+                                    <option value="" disabled selected>Choose a tenant...</option>
+                                    <!-- Dynamic options -->
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Previous Reading Info Cards (Read-only reference) -->
@@ -348,6 +389,31 @@
 
         <!-- Floating Toast Container -->
         <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+    </div>
+
+    <!-- Custom Modal for adding properties, tenants, addresses -->
+    <div id="addOptionModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 id="modalTitle"><i data-lucide="plus-circle"></i> Add Option</h3>
+                <button type="button" class="modal-close" id="closeModalBtn">&times;</button>
+            </div>
+            <form id="modalForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label id="modalInputLabel" for="modalInputValue">Value *</label>
+                        <div class="input-icon-wrapper">
+                            <i id="modalInputIcon" data-lucide="plus" class="input-icon"></i>
+                            <input type="text" id="modalInputValue" required autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveModalBtn">Save Option</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Application Script -->
