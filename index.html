@@ -23,7 +23,13 @@
                 <h1><i data-lucide="droplets"></i> AquaMeter Manager</h1>
                 <p>Commercial Property Subwater Meter Billing & Takeoff Portal</p>
             </div>
-            <div class="backup-actions">
+            <div class="backup-actions" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span id="syncStatusBadge" class="sync-status local-only" title="Not configured for cloud sync">
+                    <i data-lucide="cloud-off"></i> Local Mode
+                </span>
+                <button id="syncSettingsBtn" class="btn btn-secondary btn-sm" title="Configure Google Sheets Cloud Sync">
+                    <i data-lucide="cloud"></i> Cloud Sync
+                </button>
                 <button id="exportBackupBtn" class="btn btn-secondary btn-sm" title="Download all data as a backup JSON file">
                     <i data-lucide="download-cloud"></i> Backup Data
                 </button>
@@ -497,6 +503,50 @@
                     <button type="button" class="btn btn-secondary" id="cancelEditReadingModalBtn">Cancel</button>
                     <button type="submit" class="btn btn-primary">
                         <i data-lucide="save"></i> Update Reading
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Cloud Sync Modal -->
+    <div id="syncSettingsModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="syncModalTitle"><i data-lucide="cloud"></i> Google Sheets Cloud Sync</h2>
+                <button type="button" id="closeSyncModalBtn" class="close-btn" aria-label="Close modal">&times;</button>
+            </div>
+            <form id="syncSettingsForm">
+                <div class="modal-body" style="padding: 1.5rem 0 0 0;">
+                    <div class="form-group">
+                        <label for="syncUrlInput">Google Apps Script Web App URL</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="link" class="input-icon"></i>
+                            <input type="url" id="syncUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+                        </div>
+                        <span class="helper-text">Enter the published Web App URL from your Google Apps Script project.</span>
+                    </div>
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label for="syncTokenInput">Security Authentication Token</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="key" class="input-icon"></i>
+                            <input type="password" id="syncTokenInput" placeholder="Enter security token">
+                        </div>
+                        <span class="helper-text">A secret token to authorize database access and prevent public reads/writes.</span>
+                    </div>
+                    <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; display: flex; margin-top: 1.25rem; margin-bottom: 0.5rem;">
+                        <input type="checkbox" id="autoSyncCheckbox" style="width: auto; cursor: pointer; margin-bottom: 0;">
+                        <label for="autoSyncCheckbox" style="margin-bottom: 0; cursor: pointer; user-select: none;">Auto-sync changes to cloud</label>
+                    </div>
+                    
+                    <div id="syncModalStatus" style="margin-top: 1rem; margin-bottom: 0; font-size: 0.85rem; padding: 0.75rem; border-radius: 8px; display: none;"></div>
+                </div>
+                <div class="modal-footer" style="padding: 1.5rem 0 0 0; display: flex; gap: 0.75rem;">
+                    <button type="button" id="testSyncBtn" class="btn btn-secondary btn-full">
+                        <i data-lucide="refresh-cw"></i> Sync Now
+                    </button>
+                    <button type="submit" id="saveSyncSettingsBtn" class="btn btn-primary btn-full">
+                        <i data-lucide="save"></i> Save Settings
                     </button>
                 </div>
             </form>

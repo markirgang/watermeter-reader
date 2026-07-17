@@ -5,7 +5,13 @@ let editingTenantId = null;
 let customBuildings = [];
 let customTenantNames = [];
 let customAddresses = [];
-let modalMode = ''; // 'building', 'tenantName', 'address'
+let modalMode = ''; // 'building', 'tenantName', 'address', 'syncSettings'
+
+// Cloud Sync Settings
+let syncUrl = localStorage.getItem('aquameter_sync_url') || '';
+let syncToken = localStorage.getItem('aquameter_sync_token') || '';
+let autoSyncEnabled = localStorage.getItem('aquameter_auto_sync') === 'true';
+let isSyncingInProgress = false;
 
 // DOM Elements - Tabs
 const tabButtons = document.querySelectorAll('.tab-btn');
@@ -86,6 +92,18 @@ const exportExcelBtn = document.getElementById('exportExcelBtn');
 const exportBackupBtn = document.getElementById('exportBackupBtn');
 const importBackupBtn = document.getElementById('importBackupBtn');
 const backupFileInput = document.getElementById('backupFileInput');
+
+// DOM Elements - Cloud Sync
+const syncStatusBadge = document.getElementById('syncStatusBadge');
+const syncSettingsBtn = document.getElementById('syncSettingsBtn');
+const syncSettingsModal = document.getElementById('syncSettingsModal');
+const syncSettingsForm = document.getElementById('syncSettingsForm');
+const syncUrlInput = document.getElementById('syncUrlInput');
+const syncTokenInput = document.getElementById('syncTokenInput');
+const autoSyncCheckbox = document.getElementById('autoSyncCheckbox');
+const syncModalStatus = document.getElementById('syncModalStatus');
+const testSyncBtn = document.getElementById('testSyncBtn');
+const closeSyncModalBtn = document.getElementById('closeSyncModalBtn');
 
 // DOM Elements - Toast Container
 const toastContainer = document.getElementById('toastContainer');
@@ -190,6 +208,20 @@ function saveData() {
     }
 }
 
+function registerDeletion(id) {
+    if (!id) return;
+    try {
+        const stored = localStorage.getItem('aquameter_deleted_ids');
+        const deletedIds = stored ? JSON.parse(stored) : [];
+        if (!deletedIds.includes(id)) {
+            deletedIds.push(id);
+            localStorage.setItem('aquameter_deleted_ids', JSON.stringify(deletedIds));
+        }
+    } catch (e) {
+        console.error('Error registering deletion for sync:', e);
+    }
+}
+
 // --- TAB ROUTING ---
 function setupTabs() {
     tabButtons.forEach(button => {
@@ -282,6 +314,27 @@ function setupEventListeners() {
     exportBackupBtn.addEventListener('click', handleExportBackup);
     importBackupBtn.addEventListener('click', () => backupFileInput.click());
     backupFileInput.addEventListener('change', handleImportBackup);
+
+    // Cloud Sync
+    if (syncSettingsBtn) {
+        syncSettingsBtn.addEventListener('click', openSyncSettingsModal);
+    }
+    if (closeSyncModalBtn) {
+        closeSyncModalBtn.addEventListener('click', closeSyncSettingsModal);
+    }
+    if (syncSettingsForm) {
+        syncSettingsForm.addEventListener('submit', handleSyncSettingsSave);
+    }
+    if (testSyncBtn) {
+        testSyncBtn.addEventListener('click', () => syncWithCloud(true));
+    }
+    if (syncSettingsModal) {
+        syncSettingsModal.addEventListener('click', (e) => {
+            if (e.target === syncSettingsModal) {
+                closeSyncSettingsModal();
+            }
+        });
+    }
 
     // Reading Modal event listeners
     if (openReadingModalBtn) {
@@ -425,7 +478,8 @@ function handleTenantSubmit(e) {
                 initialReading,
                 initialDate,
                 currentReading: readings.some(r => r.tenantId === editingTenantId) ? oldTenant.currentReading : initialReading,
-                currentDate: readings.some(r => r.tenantId === editingTenantId) ? oldTenant.currentDate : initialDate
+                currentDate: readings.some(r => r.tenantId === editingTenantId) ? oldTenant.currentDate : initialDate,
+                synced: false
             };
 
             // Recalculate reading history in case initial reading/date or rate changed
@@ -445,7 +499,8 @@ function handleTenantSubmit(e) {
             initialReading,
             initialDate,
             currentReading: initialReading,
-            currentDate: initialDate
+            currentDate: initialDate,
+            synced: false
         };
         tenants.push(newTenant);
         showToast('New tenant added successfully.', 'success');
@@ -454,6 +509,10 @@ function handleTenantSubmit(e) {
     saveData();
     resetTenantForm();
     renderAll();
+    
+    if (autoSyncEnabled && syncUrl) {
+        syncWithCloud();
+    }
 }
 
 function editTenant(id) {
@@ -490,6 +549,11 @@ function deleteTenant(id) {
     if (!tenant) return;
 
     if (confirm(`Are you sure you want to delete "${tenant.name}"? This will also delete their entire reading history.`)) {
+        // Register deletions for sync
+        const tenantReadingIds = readings.filter(r => r.tenantId === id).map(r => r.id);
+        registerDeletion(id);
+        tenantReadingIds.forEach(rid => registerDeletion(rid));
+
         // Delete readings
         readings = readings.filter(r => r.tenantId !== id);
         // Delete tenant
@@ -498,6 +562,9 @@ function deleteTenant(id) {
         saveData();
         renderAll();
         showToast('Tenant and related reading history deleted.', 'success');
+        if (autoSyncEnabled && syncUrl) {
+            syncWithCloud();
+        }
     }
 }
 
@@ -811,7 +878,8 @@ function handleReadingSubmit(e) {
         rate: tenant.rate,
         cost,
         unitType: tenant.unitType,
-        comments
+        comments,
+        synced: false
     };
 
     readings.push(newReading);
@@ -825,6 +893,10 @@ function handleReadingSubmit(e) {
     renderAll();
     closeReadingModal();
     showToast(`Reading recorded. Consumption: ${consumed.toFixed(2)} ${tenant.unitType.toUpperCase()}.`, 'success');
+    
+    if (autoSyncEnabled && syncUrl) {
+        syncWithCloud();
+    }
 }
 
 function deleteReading(readingId) {
@@ -834,6 +906,9 @@ function deleteReading(readingId) {
     if (confirm('Are you sure you want to delete this meter reading?')) {
         const tenant = tenants.find(t => t.id === reading.tenantId);
         
+        // Register deletion for sync
+        registerDeletion(readingId);
+
         // Remove reading
         readings = readings.filter(r => r.id !== readingId);
         
@@ -851,11 +926,15 @@ function deleteReading(readingId) {
                 tenant.currentReading = tenant.initialReading;
                 tenant.currentDate = tenant.initialDate;
             }
+            tenant.synced = false; // Mark tenant as unsynced
         }
 
         saveData();
         renderAll();
         showToast('Reading deleted and tenant status rolled back.', 'success');
+        if (autoSyncEnabled && syncUrl) {
+            syncWithCloud();
+        }
     }
 }
 
@@ -1524,6 +1603,7 @@ function handleEditReadingSubmit(e) {
         reading.currReading = newCurrVal;
         reading.date = newDate;
         reading.comments = newComments;
+        reading.synced = false;
     }
 
     // Recalculate history to cascade values
@@ -1531,6 +1611,10 @@ function handleEditReadingSubmit(e) {
     
     closeEditReadingModal();
     showToast('Reading updated and history recalculated successfully.', 'success');
+    
+    if (autoSyncEnabled && syncUrl) {
+        syncWithCloud();
+    }
 }
 
 function recalculateTenantHistory(tenantId) {
@@ -1557,6 +1641,7 @@ function recalculateTenantHistory(tenantId) {
     // Update tenant's current reference point
     tenant.currentReading = prevReading;
     tenant.currentDate = prevDate;
+    tenant.synced = false;
 
     saveData();
     renderAll();
@@ -1609,6 +1694,226 @@ function renderAll() {
     renderReadings();
     populateTakeoffFilters();
     renderTakeoff();
+    updateSyncStatusUI();
+}
+
+// --- CLOUD SYNC ENGINE ---
+function openSyncSettingsModal() {
+    modalMode = 'syncSettings';
+    syncUrlInput.value = syncUrl;
+    syncTokenInput.value = syncToken;
+    autoSyncCheckbox.checked = autoSyncEnabled;
+    
+    // Clear status
+    syncModalStatus.style.display = 'none';
+    syncModalStatus.textContent = '';
+    syncModalStatus.className = '';
+    
+    syncSettingsModal.classList.add('active');
+    syncSettingsModal.setAttribute('aria-hidden', 'false');
+    
+    lucide.createIcons();
+}
+
+function closeSyncSettingsModal() {
+    syncSettingsModal.classList.remove('active');
+    syncSettingsModal.setAttribute('aria-hidden', 'true');
+    modalMode = '';
+}
+
+function handleSyncSettingsSave(e) {
+    e.preventDefault();
+    
+    syncUrl = syncUrlInput.value.trim();
+    syncToken = syncTokenInput.value.trim();
+    autoSyncEnabled = autoSyncCheckbox.checked;
+    
+    localStorage.setItem('aquameter_sync_url', syncUrl);
+    localStorage.setItem('aquameter_sync_token', syncToken);
+    localStorage.setItem('aquameter_auto_sync', autoSyncEnabled ? 'true' : 'false');
+    
+    closeSyncSettingsModal();
+    updateSyncStatusUI();
+    showToast('Sync settings saved.', 'success');
+}
+
+function updateSyncStatusUI() {
+    if (!syncStatusBadge) return;
+    
+    // Check if there are unsynced items or deleted items
+    const hasUnsyncedTenants = tenants.some(t => t.synced === false);
+    const hasUnsyncedReadings = readings.some(r => r.synced === false);
+    
+    let deletedIds = [];
+    try {
+        const stored = localStorage.getItem('aquameter_deleted_ids');
+        deletedIds = stored ? JSON.parse(stored) : [];
+    } catch (e) {}
+
+    const hasPendingSync = hasUnsyncedTenants || hasUnsyncedReadings || deletedIds.length > 0;
+
+    syncStatusBadge.className = 'sync-status';
+    
+    if (isSyncingInProgress) {
+        syncStatusBadge.classList.add('syncing');
+        syncStatusBadge.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Syncing...';
+        syncStatusBadge.title = 'Synchronizing database with Google Sheets';
+    } else if (!syncUrl) {
+        syncStatusBadge.classList.add('local-only');
+        syncStatusBadge.innerHTML = '<i data-lucide="cloud-off"></i> Local Mode';
+        syncStatusBadge.title = 'No cloud sync configured. Data is saved locally in this browser.';
+    } else if (hasPendingSync) {
+        syncStatusBadge.classList.add('sync-pending');
+        syncStatusBadge.innerHTML = '<i data-lucide="alert-circle"></i> Sync Pending';
+        syncStatusBadge.title = 'You have unsynced changes. Click Cloud Sync to synchronize.';
+    } else {
+        syncStatusBadge.classList.add('synced');
+        syncStatusBadge.innerHTML = '<i data-lucide="cloud"></i> Synced';
+        syncStatusBadge.title = 'Data is synchronized with Google Sheets!';
+    }
+    
+    lucide.createIcons();
+}
+
+async function syncWithCloud(isManual = false) {
+    if (!syncUrl) {
+        if (isManual) {
+            showToast('Please configure a Sync Web App URL first.', 'error');
+            openSyncSettingsModal();
+        }
+        return;
+    }
+
+    if (isSyncingInProgress) return;
+    
+    isSyncingInProgress = true;
+    updateSyncStatusUI();
+    
+    if (isManual && syncModalStatus) {
+        syncModalStatus.style.display = 'block';
+        syncModalStatus.className = 'sync-status syncing';
+        syncModalStatus.style.background = 'rgba(59, 130, 246, 0.1)';
+        syncModalStatus.style.border = '1px solid rgba(59, 130, 246, 0.2)';
+        syncModalStatus.style.color = '#3b82f6';
+        syncModalStatus.textContent = 'Connecting to Google Sheets and sending changes...';
+        lucide.createIcons();
+    }
+
+    try {
+        // Retrieve unsynced records
+        const unsyncedTenants = tenants.filter(t => t.synced === false);
+        const unsyncedReadings = readings.filter(r => r.synced === false);
+        
+        let deletedIds = [];
+        try {
+            const stored = localStorage.getItem('aquameter_deleted_ids');
+            deletedIds = stored ? JSON.parse(stored) : [];
+        } catch (e) {}
+
+        const response = await fetch(syncUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            body: JSON.stringify({
+                token: syncToken,
+                tenants: unsyncedTenants,
+                readings: unsyncedReadings,
+                deletedIds: deletedIds
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Unknown sync error');
+        }
+
+        // Merge tenants
+        if (data.tenants) {
+            const remoteTenants = data.tenants.map(t => ({ ...t, synced: true }));
+            
+            const localUnsyncedMap = new Map();
+            tenants.forEach(t => {
+                if (t.synced === false) localUnsyncedMap.set(t.id, t);
+            });
+
+            const mergedTenants = [];
+            remoteTenants.forEach(t => {
+                if (localUnsyncedMap.has(t.id)) {
+                    mergedTenants.push(localUnsyncedMap.get(t.id));
+                    localUnsyncedMap.delete(t.id);
+                } else {
+                    mergedTenants.push(t);
+                }
+            });
+            localUnsyncedMap.forEach(t => mergedTenants.push(t));
+            tenants = mergedTenants;
+        }
+
+        // Merge readings
+        if (data.readings) {
+            const remoteReadings = data.readings.map(r => ({ ...r, synced: true }));
+            
+            const localUnsyncedMap = new Map();
+            readings.forEach(r => {
+                if (r.synced === false) localUnsyncedMap.set(r.id, r);
+            });
+
+            const mergedReadings = [];
+            remoteReadings.forEach(r => {
+                if (localUnsyncedMap.has(r.id)) {
+                    mergedReadings.push(localUnsyncedMap.get(r.id));
+                    localUnsyncedMap.delete(r.id);
+                } else {
+                    mergedReadings.push(r);
+                }
+            });
+            localUnsyncedMap.forEach(r => mergedReadings.push(r));
+            readings = mergedReadings;
+        }
+
+        // Clear deleted IDs queue
+        localStorage.setItem('aquameter_deleted_ids', JSON.stringify([]));
+
+        // Save merged state
+        saveData();
+        
+        // Re-populate dropdowns and re-render
+        renderAll();
+
+        if (isManual && syncModalStatus) {
+            syncModalStatus.className = 'sync-status synced';
+            syncModalStatus.style.background = 'rgba(34, 197, 94, 0.1)';
+            syncModalStatus.style.border = '1px solid rgba(34, 197, 94, 0.2)';
+            syncModalStatus.style.color = '#22c55e';
+            syncModalStatus.textContent = 'Sync completed successfully!';
+            lucide.createIcons();
+        }
+
+        showToast('Sync with Google Sheets successful!', 'success');
+    } catch (error) {
+        console.error('Sync failed:', error);
+        
+        if (isManual && syncModalStatus) {
+            syncModalStatus.className = 'sync-status error';
+            syncModalStatus.style.background = 'rgba(239, 68, 68, 0.1)';
+            syncModalStatus.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            syncModalStatus.style.color = '#ef4444';
+            syncModalStatus.textContent = `Sync failed: ${error.message}`;
+            lucide.createIcons();
+        }
+        
+        showToast(`Sync failed: ${error.message || 'Offline'}`, 'error');
+    } finally {
+        isSyncingInProgress = false;
+        updateSyncStatusUI();
+    }
 }
 
 // --- FORMATTING UTILITIES ---
