@@ -48,6 +48,12 @@ const openReadingModalBtn = document.getElementById('openReadingModalBtn');
 const closeReadingModalBtn = document.getElementById('closeReadingModalBtn');
 const cancelReadingModalBtn = document.getElementById('cancelReadingModalBtn');
 
+// DOM Elements - Edit Reading Modal
+const editReadingModal = document.getElementById('editReadingModal');
+const editReadingForm = document.getElementById('editReadingForm');
+const closeEditReadingModalBtn = document.getElementById('closeEditReadingModalBtn');
+const cancelEditReadingModalBtn = document.getElementById('cancelEditReadingModalBtn');
+
 // DOM Elements - Readings Tab
 const readingForm = document.getElementById('readingForm');
 const readingBuildingSelect = document.getElementById('readingBuildingSelect');
@@ -286,6 +292,24 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Edit Reading Modal event listeners
+    if (closeEditReadingModalBtn) {
+        closeEditReadingModalBtn.addEventListener('click', closeEditReadingModal);
+    }
+    if (cancelEditReadingModalBtn) {
+        cancelEditReadingModalBtn.addEventListener('click', closeEditReadingModal);
+    }
+    if (editReadingModal) {
+        editReadingModal.addEventListener('click', (e) => {
+            if (e.target === editReadingModal) {
+                closeEditReadingModal();
+            }
+        });
+    }
+    if (editReadingForm) {
+        editReadingForm.addEventListener('submit', handleEditReadingSubmit);
+    }
 }
 
 // --- TOAST NOTIFICATIONS ---
@@ -358,7 +382,22 @@ function handleTenantSubmit(e) {
         // Edit mode
         const index = tenants.findIndex(t => t.id === editingTenantId);
         if (index !== -1) {
-            // Check if initial reading changed and update initial states
+            // Validate compatibility of the new initial reading/date with the first reading
+            const firstReading = readings
+                .filter(r => r.tenantId === editingTenantId)
+                .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+            if (firstReading) {
+                if (initialReading > firstReading.currReading) {
+                    showToast(`Initial reading cannot be higher than the tenant's first recorded reading (${firstReading.currReading.toFixed(2)}).`, 'error');
+                    return;
+                }
+                if (new Date(initialDate) > new Date(firstReading.date)) {
+                    showToast(`Initial date cannot be later than the tenant's first recorded reading date (${formatDate(firstReading.date)}).`, 'error');
+                    return;
+                }
+            }
+
             const oldTenant = tenants[index];
             tenants[index] = {
                 ...oldTenant,
@@ -370,10 +409,12 @@ function handleTenantSubmit(e) {
                 rate,
                 initialReading,
                 initialDate,
-                // If no readings have been logged yet, update the current reading details as well
                 currentReading: readings.some(r => r.tenantId === editingTenantId) ? oldTenant.currentReading : initialReading,
                 currentDate: readings.some(r => r.tenantId === editingTenantId) ? oldTenant.currentDate : initialDate
             };
+
+            // Recalculate reading history in case initial reading/date or rate changed
+            recalculateTenantHistory(editingTenantId);
             showToast('Tenant information updated successfully.', 'success');
         }
     } else {
@@ -805,6 +846,9 @@ function renderReadings() {
             <td><span class="helper-text" style="display: inline-block; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(reading.comments)}">${escapeHTML(reading.comments) || '-'}</span></td>
             <td>
                 <div class="action-btn-group" style="justify-content: center;">
+                    <button class="action-btn edit" onclick="openEditReadingModal('${reading.id}')" title="Edit Reading">
+                        <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                    </button>
                     <button class="action-btn delete" onclick="deleteReading('${reading.id}')" title="Delete Reading">
                         <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                     </button>
@@ -1222,6 +1266,135 @@ function closeReadingModal() {
         logReadingModal.classList.remove('active');
         logReadingModal.setAttribute('aria-hidden', 'true');
     }
+}
+
+let editReadingDatePicker;
+
+function openEditReadingModal(readingId) {
+    const reading = readings.find(r => r.id === readingId);
+    if (!reading) return;
+
+    const tenant = tenants.find(t => t.id === reading.tenantId);
+    const tenantName = tenant ? tenant.name : 'Unknown Tenant';
+
+    document.getElementById('editReadingId').value = reading.id;
+    document.getElementById('editReadingTenantId').value = reading.tenantId;
+    document.getElementById('editReadingTenantName').value = tenantName;
+    document.getElementById('editReadingCurrent').value = reading.currReading;
+    document.getElementById('editReadingComments').value = reading.comments || '';
+
+    // Initialize/update Flatpickr for the edit modal
+    if (editReadingDatePicker) {
+        editReadingDatePicker.setDate(reading.date);
+    } else {
+        editReadingDatePicker = flatpickr("#editReadingDate", {
+            defaultDate: reading.date,
+            dateFormat: "Y-m-d",
+            theme: "dark"
+        });
+    }
+
+    const editReadingModal = document.getElementById('editReadingModal');
+    editReadingModal.classList.add('active');
+    editReadingModal.setAttribute('aria-hidden', 'false');
+    
+    lucide.createIcons();
+}
+
+function closeEditReadingModal() {
+    const editReadingModal = document.getElementById('editReadingModal');
+    if (editReadingModal) {
+        editReadingModal.classList.remove('active');
+        editReadingModal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function handleEditReadingSubmit(e) {
+    e.preventDefault();
+
+    const readingId = document.getElementById('editReadingId').value;
+    const tenantId = document.getElementById('editReadingTenantId').value;
+    const newCurrVal = parseFloat(document.getElementById('editReadingCurrent').value);
+    const newDate = document.getElementById('editReadingDate').value;
+    const newComments = document.getElementById('editReadingComments').value.trim();
+
+    const tenant = tenants.find(t => t.id === tenantId);
+    if (!tenant) return;
+
+    // Validation
+    const tenantReadings = readings
+        .filter(r => r.tenantId === tenantId)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+    const currentIndex = tenantReadings.findIndex(r => r.id === readingId);
+    if (currentIndex === -1) return;
+
+    const prevReadingVal = currentIndex > 0 ? tenantReadings[currentIndex - 1].currReading : tenant.initialReading;
+    const nextReadingVal = currentIndex < tenantReadings.length - 1 ? tenantReadings[currentIndex + 1].currReading : null;
+
+    if (newCurrVal < prevReadingVal) {
+        showToast(`Reading value cannot be lower than the previous reading value (${prevReadingVal.toFixed(2)}).`, 'error');
+        return;
+    }
+    if (nextReadingVal !== null && newCurrVal > nextReadingVal) {
+        showToast(`Reading value cannot be higher than the subsequent reading value (${nextReadingVal.toFixed(2)}).`, 'error');
+        return;
+    }
+
+    const prevDateVal = currentIndex > 0 ? tenantReadings[currentIndex - 1].date : tenant.initialDate;
+    const nextDateVal = currentIndex < tenantReadings.length - 1 ? tenantReadings[currentIndex + 1].date : null;
+
+    if (new Date(newDate) < new Date(prevDateVal)) {
+        showToast(`Reading date cannot be earlier than the previous reading date (${formatDate(prevDateVal)}).`, 'error');
+        return;
+    }
+    if (nextDateVal !== null && new Date(newDate) > new Date(nextDateVal)) {
+        showToast(`Reading date cannot be later than the subsequent reading date (${formatDate(nextDateVal)}).`, 'error');
+        return;
+    }
+
+    // Update reading fields
+    const reading = readings.find(r => r.id === readingId);
+    if (reading) {
+        reading.currReading = newCurrVal;
+        reading.date = newDate;
+        reading.comments = newComments;
+    }
+
+    // Recalculate history to cascade values
+    recalculateTenantHistory(tenantId);
+    
+    closeEditReadingModal();
+    showToast('Reading updated and history recalculated successfully.', 'success');
+}
+
+function recalculateTenantHistory(tenantId) {
+    const tenant = tenants.find(t => t.id === tenantId);
+    if (!tenant) return;
+
+    // Get all readings for this tenant, sorted chronologically
+    const tenantReadings = readings
+        .filter(r => r.tenantId === tenantId)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    let prevReading = tenant.initialReading;
+    let prevDate = tenant.initialDate;
+
+    tenantReadings.forEach(reading => {
+        reading.prevReading = prevReading;
+        reading.consumed = reading.currReading - prevReading;
+        reading.cost = reading.consumed * (reading.rate || tenant.rate);
+        
+        prevReading = reading.currReading;
+        prevDate = reading.date;
+    });
+
+    // Update tenant's current reference point
+    tenant.currentReading = prevReading;
+    tenant.currentDate = prevDate;
+
+    saveData();
+    renderAll();
 }
 
 function handleModalSubmit(e) {
