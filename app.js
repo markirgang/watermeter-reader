@@ -77,6 +77,8 @@ const statTotalCF = document.getElementById('statTotalCF');
 const statTotalBilled = document.getElementById('statTotalBilled');
 const takeoffStartDate = document.getElementById('takeoffStartDate');
 const takeoffEndDate = document.getElementById('takeoffEndDate');
+const takeoffBuildingFilter = document.getElementById('takeoffBuildingFilter');
+const takeoffTenantFilter = document.getElementById('takeoffTenantFilter');
 const takeoffTableBody = document.getElementById('takeoffTableBody');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 
@@ -269,6 +271,11 @@ function setupEventListeners() {
     // Takeoff Filters
     takeoffStartDate.addEventListener('change', renderTakeoff);
     takeoffEndDate.addEventListener('change', renderTakeoff);
+    takeoffBuildingFilter.addEventListener('change', () => {
+        updateTakeoffTenantFilter();
+        renderTakeoff();
+    });
+    takeoffTenantFilter.addEventListener('change', renderTakeoff);
     exportExcelBtn.addEventListener('click', exportToExcel);
 
     // Backups
@@ -914,6 +921,72 @@ function renderReadings() {
     lucide.createIcons();
 }
 
+// --- TAKEOFF FILTERS POPULATION ---
+function populateTakeoffFilters() {
+    if (!takeoffBuildingFilter || !takeoffTenantFilter) return;
+
+    const currentBuildingSelection = takeoffBuildingFilter.value;
+    const currentTenantSelection = takeoffTenantFilter.value;
+
+    // Get unique buildings from all active tenants
+    const buildingsSet = new Set();
+    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
+    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+
+    // Populate Building Dropdown
+    takeoffBuildingFilter.innerHTML = '<option value="">All Buildings</option>';
+    sortedBuildings.forEach(building => {
+        const option = document.createElement('option');
+        option.value = building;
+        option.textContent = building;
+        takeoffBuildingFilter.appendChild(option);
+    });
+
+    // Restore selection if valid
+    if (currentBuildingSelection && sortedBuildings.includes(currentBuildingSelection)) {
+        takeoffBuildingFilter.value = currentBuildingSelection;
+    }
+
+    // Populate Tenant Dropdown based on selected building
+    updateTakeoffTenantFilter();
+
+    // Restore tenant selection if valid for this building
+    const selectedBuilding = takeoffBuildingFilter.value;
+    const filteredTenants = selectedBuilding 
+        ? tenants.filter(t => t.building === selectedBuilding)
+        : tenants;
+    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
+        takeoffTenantFilter.value = currentTenantSelection;
+    }
+}
+
+function updateTakeoffTenantFilter() {
+    if (!takeoffTenantFilter) return;
+
+    const currentTenantSelection = takeoffTenantFilter.value;
+    const selectedBuilding = takeoffBuildingFilter.value;
+
+    const filteredTenants = selectedBuilding 
+        ? tenants.filter(t => t.building === selectedBuilding)
+        : tenants;
+    const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
+
+    takeoffTenantFilter.innerHTML = '<option value="">All Tenants</option>';
+    sortedTenants.forEach(tenant => {
+        const option = document.createElement('option');
+        option.value = tenant.id;
+        option.textContent = `${tenant.name} (${tenant.submeter})`;
+        takeoffTenantFilter.appendChild(option);
+    });
+
+    // Restore tenant selection if valid for this building
+    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
+        takeoffTenantFilter.value = currentTenantSelection;
+    } else {
+        takeoffTenantFilter.value = "";
+    }
+}
+
 // --- TAKEOFF & EXCEL SUMMARY LOGIC ---
 function renderTakeoff() {
     const start = takeoffStartDate.value;
@@ -924,10 +997,21 @@ function renderTakeoff() {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Calculate Dashboard Stats from readings in range
+    const selectedBuilding = takeoffBuildingFilter ? takeoffBuildingFilter.value : '';
+    const selectedTenantId = takeoffTenantFilter ? takeoffTenantFilter.value : '';
+
+    // Filter tenants based on building/tenant dropdown filters
+    const filteredTenants = tenants.filter(t => {
+        const matchesBuilding = !selectedBuilding || t.building === selectedBuilding;
+        const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
+        return matchesBuilding && matchesTenant;
+    });
+
+    // Calculate Dashboard Stats from readings in range for the filtered tenants
+    const filteredTenantIds = new Set(filteredTenants.map(t => t.id));
     const periodReadings = readings.filter(r => {
         const d = new Date(r.date);
-        return d >= startDate && d <= endDate;
+        return d >= startDate && d <= endDate && filteredTenantIds.has(r.tenantId);
     });
 
     let totalGallons = 0;
@@ -943,7 +1027,7 @@ function renderTakeoff() {
         totalBilled += r.cost;
     });
 
-    statTotalTenants.textContent = tenants.length;
+    statTotalTenants.textContent = filteredTenants.length;
     statTotalGallons.textContent = `${totalGallons.toLocaleString(undefined, {maximumFractionDigits: 2})} gal`;
     statTotalCF.textContent = `${totalCF.toLocaleString(undefined, {maximumFractionDigits: 2})} cf`;
     statTotalBilled.textContent = `$${totalBilled.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -955,7 +1039,7 @@ function renderTakeoff() {
     if (tenants.length === 0) {
         takeoffTableBody.innerHTML = `
             <tr>
-                <td colspan="10">
+                <td colspan="11">
                     <div class="empty-state">
                         <i data-lucide="calculator" style="width: 48px; height: 48px;"></i>
                         <p>Configure tenants in the Tenant Directory tab first to generate a takeoff.</p>
@@ -967,7 +1051,22 @@ function renderTakeoff() {
         return;
     }
 
-    tenants.forEach(tenant => {
+    if (filteredTenants.length === 0) {
+        takeoffTableBody.innerHTML = `
+            <tr>
+                <td colspan="11">
+                    <div class="empty-state">
+                        <i data-lucide="calculator" style="width: 48px; height: 48px;"></i>
+                        <p>No tenants found matching the active filters.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    filteredTenants.forEach(tenant => {
         // Find all readings for this tenant within the period, sorted chronologically
         const tenantPeriodReadings = periodReadings
             .filter(r => r.tenantId === tenant.id)
@@ -1046,9 +1145,21 @@ function exportToExcel() {
         const startDate = new Date(start);
         const endDate = new Date(end);
 
+        const selectedBuilding = takeoffBuildingFilter ? takeoffBuildingFilter.value : '';
+        const selectedTenantId = takeoffTenantFilter ? takeoffTenantFilter.value : '';
+
+        // Filter tenants based on active takeoff filters
+        const filteredTenants = tenants.filter(t => {
+            const matchesBuilding = !selectedBuilding || t.building === selectedBuilding;
+            const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
+            return matchesBuilding && matchesTenant;
+        });
+
+        const filteredTenantIds = new Set(filteredTenants.map(t => t.id));
+
         // --- 1. BILLING TAKEOFF SHEET DATA ---
         const takeoffData = [];
-        tenants.forEach(tenant => {
+        filteredTenants.forEach(tenant => {
             const tenantPeriodReadings = readings
                 .filter(r => r.tenantId === tenant.id && new Date(r.date) >= startDate && new Date(r.date) <= endDate)
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1093,7 +1204,7 @@ function exportToExcel() {
         });
 
         // --- 2. TENANT DIRECTORY SHEET DATA ---
-        const directoryData = tenants.map(t => ({
+        const directoryData = filteredTenants.map(t => ({
             'Store Name': t.name,
             'Building': t.building || 'N/A',
             'Unit Address': t.address,
@@ -1106,6 +1217,7 @@ function exportToExcel() {
 
         // --- 3. READING HISTORY SHEET DATA ---
         const historyData = readings
+            .filter(r => filteredTenantIds.has(r.tenantId))
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .map(r => {
                 const tenant = tenants.find(t => t.id === r.tenantId);
@@ -1495,6 +1607,7 @@ function renderAll() {
     renderTenants();
     populateReadingBuildingDropdown();
     renderReadings();
+    populateTakeoffFilters();
     renderTakeoff();
 }
 

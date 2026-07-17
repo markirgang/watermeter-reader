@@ -280,6 +280,24 @@
                             <label for="takeoffEndDate" style="margin-bottom: 0;">To:</label>
                             <input type="date" id="takeoffEndDate" style="width: 140px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
                         </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="takeoffBuildingFilter" style="margin-bottom: 0;">Building:</label>
+                            <div class="input-icon-wrapper" style="width: 180px;">
+                                <i data-lucide="building" class="input-icon" style="color: var(--text-muted); opacity: 0.7;"></i>
+                                <select id="takeoffBuildingFilter" class="select-sm">
+                                    <option value="">All Buildings</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="takeoffTenantFilter" style="margin-bottom: 0;">Tenant:</label>
+                            <div class="input-icon-wrapper" style="width: 180px;">
+                                <i data-lucide="users" class="input-icon" style="color: var(--text-muted); opacity: 0.7;"></i>
+                                <select id="takeoffTenantFilter" class="select-sm">
+                                    <option value="">All Tenants</option>
+                                </select>
+                            </div>
+                        </div>
                         <button id="exportExcelBtn" class="btn btn-primary btn-sm">
                             <i data-lucide="file-spreadsheet"></i> Export to Excel
                         </button>

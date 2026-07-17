@@ -273,6 +273,17 @@ textarea {
     padding-left: 2.25rem;
 }
 
+select.select-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    height: auto;
+}
+
+.input-icon-wrapper select.select-sm {
+    padding-left: 2rem;
+}
+
 .input-icon-wrapper .input-icon {
     position: absolute;
     left: 0.75rem;
