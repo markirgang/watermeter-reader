@@ -42,6 +42,12 @@ const addBuildingBtn = document.getElementById('addBuildingBtn');
 const addTenantBtn = document.getElementById('addTenantBtn');
 const addAddressBtn = document.getElementById('addAddressBtn');
 
+// DOM Elements - Reading Modal
+const logReadingModal = document.getElementById('logReadingModal');
+const openReadingModalBtn = document.getElementById('openReadingModalBtn');
+const closeReadingModalBtn = document.getElementById('closeReadingModalBtn');
+const cancelReadingModalBtn = document.getElementById('cancelReadingModalBtn');
+
 // DOM Elements - Readings Tab
 const readingForm = document.getElementById('readingForm');
 const readingBuildingSelect = document.getElementById('readingBuildingSelect');
@@ -255,6 +261,31 @@ function setupEventListeners() {
     exportBackupBtn.addEventListener('click', handleExportBackup);
     importBackupBtn.addEventListener('click', () => backupFileInput.click());
     backupFileInput.addEventListener('change', handleImportBackup);
+
+    // Reading Modal event listeners
+    if (openReadingModalBtn) {
+        openReadingModalBtn.addEventListener('click', () => {
+            logReadingModal.classList.add('active');
+            logReadingModal.setAttribute('aria-hidden', 'false');
+            populateReadingBuildingDropdown();
+            lucide.createIcons();
+        });
+    }
+
+    if (closeReadingModalBtn) {
+        closeReadingModalBtn.addEventListener('click', closeReadingModal);
+    }
+    if (cancelReadingModalBtn) {
+        cancelReadingModalBtn.addEventListener('click', closeReadingModal);
+    }
+
+    if (logReadingModal) {
+        logReadingModal.addEventListener('click', (e) => {
+            if (e.target === logReadingModal) {
+                closeReadingModal();
+            }
+        });
+    }
 }
 
 // --- TOAST NOTIFICATIONS ---
@@ -691,6 +722,7 @@ function handleReadingSubmit(e) {
     resetReadingFormFields(true);
     populateReadingBuildingDropdown(); // Redraw references
     renderAll();
+    closeReadingModal();
     showToast(`Reading recorded. Consumption: ${consumed.toFixed(2)} ${tenant.unitType.toUpperCase()}.`, 'success');
 }
 
@@ -1183,6 +1215,13 @@ function closeModal() {
     addOptionModal.setAttribute('aria-hidden', 'true');
     modalMode = '';
     modalInputValue.value = '';
+}
+
+function closeReadingModal() {
+    if (logReadingModal) {
+        logReadingModal.classList.remove('active');
+        logReadingModal.setAttribute('aria-hidden', 'true');
+    }
 }
 
 function handleModalSubmit(e) {

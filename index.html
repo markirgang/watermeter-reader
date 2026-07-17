@@ -194,120 +194,43 @@
 
         <!-- Tab 2: Enter Readings -->
         <main id="tab-readings" class="tab-content">
-            <div class="grid-2">
-                <!-- Reading Entry Form -->
-                <section class="card">
-                    <h2 class="card-title"><i data-lucide="pen-tool"></i> Log New Meter Reading</h2>
-                    <form id="readingForm">
-                        <div class="form-group">
-                            <label for="readingBuildingSelect">Select Building / Property *</label>
-                            <div class="input-icon-wrapper">
-                                <i data-lucide="building" class="input-icon"></i>
-                                <select id="readingBuildingSelect" required>
-                                    <option value="" disabled selected>Choose a building...</option>
-                                    <!-- Dynamic options -->
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="readingTenantSelect">Select Tenant *</label>
-                            <div class="input-icon-wrapper">
-                                <i data-lucide="store" class="input-icon"></i>
-                                <select id="readingTenantSelect" required disabled>
-                                    <option value="" disabled selected>Choose a tenant...</option>
-                                    <!-- Dynamic options -->
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Previous Reading Info Cards (Read-only reference) -->
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Building</span>
-                                <span id="refBuilding" style="font-weight: 600; color: var(--text-primary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="--">--</span>
-                            </div>
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Submeter ID</span>
-                                <span id="refSubmeterId" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
-                            </div>
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Unit Type</span>
-                                <span id="refUnitType" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
-                            </div>
-                        </div>
-
-                        <div class="form-row" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Previous Reading</span>
-                                <span id="refPrevReading" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
-                            </div>
-                            <div>
-                                <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Reading Date</span>
-                                <span id="refPrevReadingDate" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="readingCurrent">Current Reading *</label>
-                                <div class="input-icon-wrapper">
-                                    <i data-lucide="gauge" class="input-icon"></i>
-                                    <input type="number" id="readingCurrent" step="0.01" min="0" placeholder="Enter current dial value" required disabled>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="readingDate">Reading Date *</label>
-                                <div class="input-icon-wrapper">
-                                    <i data-lucide="calendar" class="input-icon"></i>
-                                    <input type="date" id="readingDate" required disabled>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="readingComments">Comments / Notes</label>
-                            <textarea id="readingComments" placeholder="e.g. Verified dial alignment, slight leak reported" disabled></textarea>
-                        </div>
-
-                        <button type="submit" id="saveReadingBtn" class="btn btn-primary btn-full" disabled>
-                            <i data-lucide="check-circle-2"></i> Submit Reading
-                        </button>
-                    </form>
-                </section>
-
-                <!-- Reading History Table -->
-                <section class="card">
-                    <h2 class="card-title"><i data-lucide="history"></i> Reading History Ledger</h2>
-                    <div class="table-header-controls">
-                        <div class="search-input-wrapper">
-                            <i data-lucide="search"></i>
-                            <input type="text" id="readingSearchInput" placeholder="Filter by store or submeter...">
-                        </div>
+            <!-- Reading History Table -->
+            <section class="card">
+                <div class="takeoff-header">
+                    <h2 class="card-title" style="margin-bottom: 0;"><i data-lucide="history"></i> Reading History Ledger</h2>
+                    <button id="openReadingModalBtn" class="btn btn-primary btn-sm" title="Log New Tenant Water Meter Reading">
+                        <i data-lucide="plus"></i> Log Reading
+                    </button>
+                </div>
+                
+                <div class="table-header-controls" style="margin-top: 1.5rem;">
+                    <div class="search-input-wrapper">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="readingSearchInput" placeholder="Filter by store or submeter...">
                     </div>
-                    <div class="table-container">
-                        <table id="readingTable">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Store</th>
-                                    <th>Submeter</th>
-                                    <th>Prev Read</th>
-                                    <th>Curr Read</th>
-                                    <th>Consumed</th>
-                                    <th>Cost</th>
-                                    <th>Comments</th>
-                                    <th style="width: 60px; text-align: center;">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="readingTableBody">
-                                <!-- Dynamic rows -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
+                </div>
+                
+                <div class="table-container">
+                    <table id="readingTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Store</th>
+                                <th>Submeter</th>
+                                <th>Prev Read</th>
+                                <th>Curr Read</th>
+                                <th>Consumed</th>
+                                <th>Cost</th>
+                                <th>Comments</th>
+                                <th style="width: 60px; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="readingTableBody">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </main>
 
         <!-- Tab 3: Takeoff Summary & Excel Export -->
@@ -411,6 +334,97 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="saveModalBtn">Save Option</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Modal for logging new reading -->
+    <div id="logReadingModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i data-lucide="pen-tool"></i> Log New Meter Reading</h3>
+                <button type="button" class="modal-close" id="closeReadingModalBtn">&times;</button>
+            </div>
+            <form id="readingForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="readingBuildingSelect">Select Building / Property *</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="building" class="input-icon"></i>
+                            <select id="readingBuildingSelect" required>
+                                <option value="" disabled selected>Choose a building...</option>
+                                <!-- Dynamic options -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="readingTenantSelect">Select Tenant *</label>
+                        <div class="input-icon-wrapper">
+                            <i data-lucide="store" class="input-icon"></i>
+                            <select id="readingTenantSelect" required disabled>
+                                <option value="" disabled selected>Choose a tenant...</option>
+                                <!-- Dynamic options -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Previous Reading Info Cards (Read-only reference) -->
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Building</span>
+                            <span id="refBuilding" style="font-weight: 600; color: var(--text-primary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="--">--</span>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Submeter ID</span>
+                            <span id="refSubmeterId" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Unit Type</span>
+                            <span id="refUnitType" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Previous Reading</span>
+                            <span id="refPrevReading" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Reading Date</span>
+                            <span id="refPrevReadingDate" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="readingCurrent">Current Reading *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="gauge" class="input-icon"></i>
+                                <input type="number" id="readingCurrent" step="0.01" min="0" placeholder="Enter dial value" required disabled>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="readingDate">Reading Date *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="calendar" class="input-icon"></i>
+                                <input type="text" id="readingDate" required disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1.25rem; margin-bottom: 0;">
+                        <label for="readingComments">Comments / Notes</label>
+                        <textarea id="readingComments" placeholder="e.g. Verified dial alignment, slight leak reported" disabled></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelReadingModalBtn">Cancel</button>
+                    <button type="submit" id="saveReadingBtn" class="btn btn-primary" disabled>
+                        <i data-lucide="check-circle-2"></i> Submit Reading
+                    </button>
                 </div>
             </form>
         </div>
