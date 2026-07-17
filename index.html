@@ -387,13 +387,19 @@
                     </div>
 
                     <div class="form-row" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
-                        <div>
-                            <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Previous Reading</span>
-                            <span id="refPrevReading" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="readingPrev" style="color: var(--primary); font-weight: 700; text-transform: uppercase; font-size: 0.75rem;">Previous Reading *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="gauge" class="input-icon"></i>
+                                <input type="number" id="readingPrev" step="0.01" min="0" placeholder="Previous dial" required disabled style="background: rgba(15, 23, 42, 0.4); border-color: rgba(99, 102, 241, 0.3);">
+                            </div>
                         </div>
-                        <div>
-                            <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Reading Date</span>
-                            <span id="refPrevReadingDate" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="readingPrevDate" style="color: var(--primary); font-weight: 700; text-transform: uppercase; font-size: 0.75rem;">Prev Reading Date *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="calendar" class="input-icon"></i>
+                                <input type="text" id="readingPrevDate" required disabled style="background: rgba(15, 23, 42, 0.4); border-color: rgba(99, 102, 241, 0.3);">
+                            </div>
                         </div>
                     </div>
 

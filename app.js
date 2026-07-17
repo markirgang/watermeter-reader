@@ -61,8 +61,8 @@ const readingTenantSelect = document.getElementById('readingTenantSelect');
 const refBuilding = document.getElementById('refBuilding');
 const refSubmeterId = document.getElementById('refSubmeterId');
 const refUnitType = document.getElementById('refUnitType');
-const refPrevReading = document.getElementById('refPrevReading');
-const refPrevReadingDate = document.getElementById('refPrevReadingDate');
+const readingPrevInput = document.getElementById('readingPrev');
+const readingPrevDateInput = document.getElementById('readingPrevDate');
 const readingCurrentInput = document.getElementById('readingCurrent');
 const readingDateInput = document.getElementById('readingDate');
 const readingCommentsInput = document.getElementById('readingComments');
@@ -90,6 +90,7 @@ const toastContainer = document.getElementById('toastContainer');
 
 // Flatpickr instances
 let tenantInitialDatePicker;
+let readingPrevDatePicker;
 let readingDatePicker;
 let takeoffStartDatePicker;
 let takeoffEndDatePicker;
@@ -106,6 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
         theme: "dark"
     });
     
+    readingPrevDatePicker = flatpickr("#readingPrevDate", {
+        defaultDate: today,
+        dateFormat: "Y-m-d",
+        theme: "dark",
+        clickOpens: false // Start disabled
+    });
+
     readingDatePicker = flatpickr("#readingDate", {
         defaultDate: today,
         dateFormat: "Y-m-d",
@@ -655,13 +663,17 @@ function handleReadingTenantChange() {
         return;
     }
 
-    // Populate Read-only details
-    refBuilding.textContent = tenant.building || 'N/A';
-    refBuilding.title = tenant.building || 'N/A';
-    refSubmeterId.textContent = tenant.submeter;
-    refUnitType.textContent = tenant.unitType.toUpperCase();
-    refPrevReading.textContent = tenant.currentReading.toFixed(2);
-    refPrevReadingDate.textContent = formatDate(tenant.currentDate);
+    // Populate Previous and current reading details
+    readingPrevInput.value = tenant.currentReading;
+    readingPrevInput.disabled = false;
+    readingPrevDateInput.disabled = false;
+
+    if (readingPrevDatePicker) {
+        readingPrevDatePicker.set('clickOpens', true);
+        readingPrevDatePicker.setDate(tenant.currentDate);
+    } else {
+        readingPrevDateInput.value = tenant.currentDate;
+    }
 
     // Enable inputs
     readingCurrentInput.disabled = false;
@@ -688,8 +700,18 @@ function resetReadingFormFields(clearSelects = false) {
     refBuilding.title = '--';
     refSubmeterId.textContent = '--';
     refUnitType.textContent = '--';
-    refPrevReading.textContent = '--';
-    refPrevReadingDate.textContent = '--';
+
+    readingPrevInput.value = '';
+    readingPrevInput.disabled = true;
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (readingPrevDatePicker) {
+        readingPrevDatePicker.set('clickOpens', false);
+        readingPrevDatePicker.setDate(today);
+    } else {
+        readingPrevDateInput.value = today;
+    }
+    readingPrevDateInput.disabled = true;
 
     readingCurrentInput.value = '';
     readingCurrentInput.disabled = true;
@@ -697,7 +719,6 @@ function resetReadingFormFields(clearSelects = false) {
     readingCommentsInput.disabled = true;
     saveReadingBtn.disabled = true;
 
-    const today = new Date().toISOString().split('T')[0];
     if (readingDatePicker) {
         readingDatePicker.set('clickOpens', false);
         readingDatePicker.setDate(today);
@@ -720,22 +741,56 @@ function handleReadingSubmit(e) {
     const tenant = tenants.find(t => t.id === tenantId);
     if (!tenant) return;
 
+    const prevReading = parseFloat(readingPrevInput.value);
+    const prevDate = readingPrevDateInput.value;
     const currReading = parseFloat(readingCurrentInput.value);
     const date = readingDateInput.value;
     const comments = readingCommentsInput.value.trim();
 
     // Strict validation
-    if (currReading < tenant.currentReading) {
-        showToast(`Current reading (${currReading}) cannot be lower than the previous reading (${tenant.currentReading}).`, 'error');
+    if (currReading < prevReading) {
+        showToast(`Current reading (${currReading}) cannot be lower than the previous reading (${prevReading}).`, 'error');
         return;
     }
 
-    if (new Date(date) < new Date(tenant.currentDate)) {
-        showToast(`Reading date cannot be earlier than the previous reading date (${formatDate(tenant.currentDate)}).`, 'error');
+    if (new Date(date) < new Date(prevDate)) {
+        showToast(`Reading date cannot be earlier than the previous reading date (${formatDate(prevDate)}).`, 'error');
         return;
     }
 
-    const prevReading = tenant.currentReading;
+    // Step 1: Update the historical previous reading or tenant initial state
+    const tenantReadings = readings
+        .filter(r => r.tenantId === tenant.id)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+    if (tenantReadings.length > 0) {
+        const latestHistoryReading = tenantReadings[tenantReadings.length - 1];
+        
+        // Check that this edited previous value is compatible with the reading before it (if any)
+        const prevPrevReadingVal = tenantReadings.length > 1 ? tenantReadings[tenantReadings.length - 2].currReading : tenant.initialReading;
+        const prevPrevDateVal = tenantReadings.length > 1 ? tenantReadings[tenantReadings.length - 2].date : tenant.initialDate;
+        
+        if (prevReading < prevPrevReadingVal) {
+            showToast(`Previous reading cannot be lower than the reading before it (${prevPrevReadingVal.toFixed(2)}).`, 'error');
+            return;
+        }
+        if (new Date(prevDate) < new Date(prevPrevDateVal)) {
+            showToast(`Previous date cannot be earlier than the date before it (${formatDate(prevPrevDateVal)}).`, 'error');
+            return;
+        }
+        
+        latestHistoryReading.currReading = prevReading;
+        latestHistoryReading.date = prevDate;
+    } else {
+        // No historical readings, so previous reading maps to the tenant's initialReading
+        tenant.initialReading = prevReading;
+        tenant.initialDate = prevDate;
+    }
+
+    // Recalculate baseline sequence
+    recalculateTenantHistory(tenantId);
+
+    // Step 2: Create and push the new reading
     const consumed = currReading - prevReading;
     const cost = consumed * tenant.rate;
 
@@ -752,12 +807,10 @@ function handleReadingSubmit(e) {
         comments
     };
 
-    // Add reading to state
     readings.push(newReading);
 
-    // Update tenant's current reference point
-    tenant.currentReading = currReading;
-    tenant.currentDate = date;
+    // Recalculate everything to update current values and apply save
+    recalculateTenantHistory(tenantId);
 
     saveData();
     resetReadingFormFields(true);
