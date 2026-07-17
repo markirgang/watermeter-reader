@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Meter Reader - Property Management Portal</title>
+    <meta name="description" content="Manage tenant water meter readings, track consumption, calculate billing costs, and export takeoff spreadsheets for property management software.">
+    <link rel="stylesheet" href="styles.css">
+    <!-- SheetJS for Excel Exports -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo-section">
+                <h1><i data-lucide="droplets"></i> AquaMeter Manager</h1>
+                <p>Commercial Property Subwater Meter Billing & Takeoff Portal</p>
+            </div>
+            <div class="backup-actions">
+                <button id="exportBackupBtn" class="btn btn-secondary btn-sm" title="Download all data as a backup JSON file">
+                    <i data-lucide="download-cloud"></i> Backup Data
+                </button>
+                <button id="importBackupBtn" class="btn btn-secondary btn-sm" title="Upload data from a backup JSON file">
+                    <i data-lucide="upload-cloud"></i> Restore Backup
+                </button>
+                <input type="file" id="backupFileInput" style="display: none;" accept=".json">
+            </div>
+        </header>
+
+        <!-- Tab Controls -->
+        <nav class="tab-navigation" role="tablist">
+            <button class="tab-btn active" data-tab="tenants" role="tab" aria-selected="true">
+                <i data-lucide="users"></i> Tenant Directory
+            </button>
+            <button class="tab-btn" data-tab="readings" role="tab" aria-selected="false">
+                <i data-lucide="clipboard-list"></i> Enter Readings
+            </button>
+            <button class="tab-btn" data-tab="takeoff" role="tab" aria-selected="false">
+                <i data-lucide="calculator"></i> Takeoff & Export
+            </button>
+        </nav>
+
+        <!-- Tab 1: Tenant Information -->
+        <main id="tab-tenants" class="tab-content active">
+            <div class="grid-2">
+                <!-- Tenant Form Card -->
+                <section class="card">
+                    <h2 class="card-title" id="tenantFormTitle"><i data-lucide="user-plus"></i> Add New Tenant</h2>
+                    <form id="tenantForm">
+                        <input type="hidden" id="tenantId">
+                        
+                        <div class="form-group">
+                            <label for="tenantName">Store / Tenant Name *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="store" class="input-icon"></i>
+                                <input type="text" id="tenantName" placeholder="e.g., Starbucks Coffee" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tenantAddress">Unit Address *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <input type="text" id="tenantAddress" placeholder="e.g., 104 Main St, Suite B" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tenantSubmeter">Submeter ID</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="hash" class="input-icon"></i>
+                                    <input type="text" id="tenantSubmeter" placeholder="Auto (1st 4 of address)">
+                                </div>
+                                <span class="helper-text">Leave blank to auto-generate from address.</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tenantUnit">Unit Type *</label>
+                                <select id="tenantUnit" required>
+                                    <option value="cf">Cubic Feet (cf)</option>
+                                    <option value="gal">Gallons (gal)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tenantRate">Billing Rate ($/unit) *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="dollar-sign" class="input-icon"></i>
+                                    <input type="number" id="tenantRate" step="0.0001" min="0" placeholder="0.05" required>
+                                </div>
+                                <span class="helper-text">Rate per cubic foot or gallon.</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tenantInitialReading">Initial Reading *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="gauge" class="input-icon"></i>
+                                    <input type="number" id="tenantInitialReading" step="0.01" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tenantInitialDate">Initial Reading Date *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="calendar" class="input-icon"></i>
+                                <input type="date" id="tenantInitialDate" required>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button type="submit" id="saveTenantBtn" class="btn btn-primary btn-full">
+                                <i data-lucide="save"></i> Save Tenant
+                            </button>
+                            <button type="button" id="cancelEditTenantBtn" class="btn btn-secondary" style="display: none;">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Tenant List Card -->
+                <section class="card">
+                    <h2 class="card-title"><i data-lucide="users"></i> Active Tenants</h2>
+                    <div class="table-header-controls">
+                        <div class="search-input-wrapper">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="tenantSearchInput" placeholder="Search tenants...">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="tenantTable">
+                            <thead>
+                                <tr>
+                                    <th>Store Name</th>
+                                    <th>Address</th>
+                                    <th>Submeter ID</th>
+                                    <th>Unit</th>
+                                    <th>Rate</th>
+                                    <th>Current Read</th>
+                                    <th style="width: 100px; text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tenantTableBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Tab 2: Enter Readings -->
+        <main id="tab-readings" class="tab-content">
+            <div class="grid-2">
+                <!-- Reading Entry Form -->
+                <section class="card">
+                    <h2 class="card-title"><i data-lucide="pen-tool"></i> Log New Meter Reading</h2>
+                    <form id="readingForm">
+                        <div class="form-group">
+                            <label for="readingTenantSelect">Select Tenant *</label>
+                            <select id="readingTenantSelect" required>
+                                <option value="" disabled selected>Choose a tenant...</option>
+                                <!-- Dynamic options -->
+                            </select>
+                        </div>
+
+                        <!-- Previous Reading Info Cards (Read-only reference) -->
+                        <div class="form-row" style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Submeter ID</span>
+                                <span id="refSubmeterId" style="font-weight: 600; color: var(--text-primary);">--</span>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Unit Type</span>
+                                <span id="refUnitType" style="font-weight: 600; color: var(--text-primary);">--</span>
+                            </div>
+                        </div>
+
+                        <div class="form-row" style="background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.2); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Previous Reading</span>
+                                <span id="refPrevReading" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--primary); font-weight: 700; display: block; text-transform: uppercase;">Reading Date</span>
+                                <span id="refPrevReadingDate" style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">--</span>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="readingCurrent">Current Reading *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="gauge" class="input-icon"></i>
+                                    <input type="number" id="readingCurrent" step="0.01" min="0" placeholder="Enter current dial value" required disabled>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="readingDate">Reading Date *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="calendar" class="input-icon"></i>
+                                    <input type="date" id="readingDate" required disabled>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="readingComments">Comments / Notes</label>
+                            <textarea id="readingComments" placeholder="e.g. Verified dial alignment, slight leak reported" disabled></textarea>
+                        </div>
+
+                        <button type="submit" id="saveReadingBtn" class="btn btn-primary btn-full" disabled>
+                            <i data-lucide="check-circle-2"></i> Submit Reading
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Reading History Table -->
+                <section class="card">
+                    <h2 class="card-title"><i data-lucide="history"></i> Reading History Ledger</h2>
+                    <div class="table-header-controls">
+                        <div class="search-input-wrapper">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="readingSearchInput" placeholder="Filter by store or submeter...">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="readingTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Store</th>
+                                    <th>Submeter</th>
+                                    <th>Prev Read</th>
+                                    <th>Curr Read</th>
+                                    <th>Consumed</th>
+                                    <th>Cost</th>
+                                    <th>Comments</th>
+                                    <th style="width: 60px; text-align: center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="readingTableBody">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Tab 3: Takeoff Summary & Excel Export -->
+        <main id="tab-takeoff" class="tab-content">
+            <!-- Summary Dashboard Cards -->
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-icon"><i data-lucide="building"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-label">Active Tenants</span>
+                        <div id="statTotalTenants" class="stat-value">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i data-lucide="droplet"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-label">Total Consumed (gal)</span>
+                        <div id="statTotalGallons" class="stat-value">0 gal</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i data-lucide="box"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-label">Total Consumed (cf)</span>
+                        <div id="statTotalCF" class="stat-value">0 cf</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon yellow"><i data-lucide="dollar-sign"></i></div>
+                    <div class="stat-info">
+                        <span class="stat-label">Total Billed Cost</span>
+                        <div id="statTotalBilled" class="stat-value">$0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Takeoff List Card -->
+            <section class="card">
+                <div class="takeoff-header">
+                    <h2 class="card-title" style="margin-bottom: 0;"><i data-lucide="calculator"></i> Tenant Billing Takeoff List</h2>
+                    <div class="takeoff-controls">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="takeoffStartDate" style="margin-bottom: 0;">From:</label>
+                            <input type="date" id="takeoffStartDate" style="width: 140px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="takeoffEndDate" style="margin-bottom: 0;">To:</label>
+                            <input type="date" id="takeoffEndDate" style="width: 140px; padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                        </div>
+                        <button id="exportExcelBtn" class="btn btn-primary btn-sm">
+                            <i data-lucide="file-spreadsheet"></i> Export to Excel
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table id="takeoffTable">
+                        <thead>
+                            <tr>
+                                <th>Store Name</th>
+                                <th>Submeter ID</th>
+                                <th>Billing Period</th>
+                                <th>Start Read</th>
+                                <th>End Read</th>
+                                <th>Consumption</th>
+                                <th>Unit</th>
+                                <th>Rate</th>
+                                <th>Total Cost</th>
+                                <th>Comments</th>
+                            </tr>
+                        </thead>
+                        <tbody id="takeoffTableBody">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Floating Toast Container -->
+        <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>
