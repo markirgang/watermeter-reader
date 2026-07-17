@@ -539,7 +539,7 @@ function populateReadingBuildingDropdown() {
     } else {
         readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
         readingTenantSelect.disabled = true;
-        resetReadingFormFields();
+        resetReadingFormFields(true);
     }
 }
 
@@ -549,7 +549,7 @@ function populateTenantDropdown(selectedBuilding) {
     
     if (!selectedBuilding) {
         readingTenantSelect.disabled = true;
-        resetReadingFormFields();
+        resetReadingFormFields(true);
         return;
     }
     
@@ -570,7 +570,7 @@ function populateTenantDropdown(selectedBuilding) {
         readingTenantSelect.value = currentSelection;
         handleReadingTenantChange();
     } else {
-        resetReadingFormFields();
+        resetReadingFormFields(false);
     }
 }
 
@@ -579,7 +579,7 @@ function handleReadingTenantChange() {
     const tenant = tenants.find(t => t.id === tenantId);
 
     if (!tenant) {
-        resetReadingFormFields();
+        resetReadingFormFields(false);
         return;
     }
 
@@ -611,7 +611,7 @@ function handleReadingTenantChange() {
     readingDateInput.min = tenant.currentDate;
 }
 
-function resetReadingFormFields() {
+function resetReadingFormFields(clearSelects = false) {
     refBuilding.textContent = '--';
     refBuilding.title = '--';
     refSubmeterId.textContent = '--';
@@ -619,19 +619,25 @@ function resetReadingFormFields() {
     refPrevReading.textContent = '--';
     refPrevReadingDate.textContent = '--';
 
+    readingCurrentInput.value = '';
     readingCurrentInput.disabled = true;
-    readingDateInput.disabled = true;
+    readingCommentsInput.value = '';
     readingCommentsInput.disabled = true;
     saveReadingBtn.disabled = true;
 
-    readingForm.reset();
-    
     const today = new Date().toISOString().split('T')[0];
     if (readingDatePicker) {
         readingDatePicker.set('clickOpens', false);
         readingDatePicker.setDate(today);
     } else {
         readingDateInput.value = today;
+    }
+    readingDateInput.disabled = true;
+
+    if (clearSelects) {
+        readingBuildingSelect.value = '';
+        readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
+        readingTenantSelect.disabled = true;
     }
 }
 
@@ -682,7 +688,7 @@ function handleReadingSubmit(e) {
     tenant.currentDate = date;
 
     saveData();
-    resetReadingFormFields();
+    resetReadingFormFields(true);
     populateReadingBuildingDropdown(); // Redraw references
     renderAll();
     showToast(`Reading recorded. Consumption: ${consumed.toFixed(2)} ${tenant.unitType.toUpperCase()}.`, 'success');
