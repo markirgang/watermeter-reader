@@ -11,6 +11,7 @@ const tabContents = document.querySelectorAll('.tab-content');
 const tenantForm = document.getElementById('tenantForm');
 const tenantFormTitle = document.getElementById('tenantFormTitle');
 const tenantIdInput = document.getElementById('tenantId');
+const tenantBuildingInput = document.getElementById('tenantBuilding');
 const tenantNameInput = document.getElementById('tenantName');
 const tenantAddressInput = document.getElementById('tenantAddress');
 const tenantSubmeterInput = document.getElementById('tenantSubmeter');
@@ -26,6 +27,7 @@ const tenantSearchInput = document.getElementById('tenantSearchInput');
 // DOM Elements - Readings Tab
 const readingForm = document.getElementById('readingForm');
 const readingTenantSelect = document.getElementById('readingTenantSelect');
+const refBuilding = document.getElementById('refBuilding');
 const refSubmeterId = document.getElementById('refSubmeterId');
 const refUnitType = document.getElementById('refUnitType');
 const refPrevReading = document.getElementById('refPrevReading');
@@ -205,6 +207,7 @@ function handleTenantSubmit(e) {
     e.preventDefault();
 
     const id = tenantIdInput.value;
+    const building = tenantBuildingInput.value.trim();
     const name = tenantNameInput.value.trim();
     const address = tenantAddressInput.value.trim();
     let submeter = tenantSubmeterInput.value.trim();
@@ -232,6 +235,7 @@ function handleTenantSubmit(e) {
             const oldTenant = tenants[index];
             tenants[index] = {
                 ...oldTenant,
+                building,
                 name,
                 address,
                 submeter,
@@ -249,6 +253,7 @@ function handleTenantSubmit(e) {
         // Create mode
         const newTenant = {
             id: 'tenant_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            building,
             name,
             address,
             submeter,
@@ -274,6 +279,7 @@ function editTenant(id) {
 
     editingTenantId = tenant.id;
     tenantIdInput.value = tenant.id;
+    tenantBuildingInput.value = tenant.building || '';
     tenantNameInput.value = tenant.name;
     tenantAddressInput.value = tenant.address;
     tenantSubmeterInput.value = tenant.submeter;
@@ -312,6 +318,7 @@ function resetTenantForm() {
     editingTenantId = null;
     tenantForm.reset();
     tenantIdInput.value = '';
+    tenantBuildingInput.value = '';
     
     tenantFormTitle.innerHTML = `<i data-lucide="user-plus"></i> Add New Tenant`;
     saveTenantBtn.innerHTML = `<i data-lucide="save"></i> Save Tenant`;
@@ -326,6 +333,7 @@ function renderTenants() {
     const filter = tenantSearchInput.value.toLowerCase();
     const filteredTenants = tenants.filter(t => 
         t.name.toLowerCase().includes(filter) || 
+        (t.building && t.building.toLowerCase().includes(filter)) ||
         t.submeter.toLowerCase().includes(filter) ||
         t.address.toLowerCase().includes(filter)
     );
@@ -351,6 +359,7 @@ function renderTenants() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
+            <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.address)}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
             <td><span class="badge badge-${tenant.unitType}">${tenant.unitType.toUpperCase()}</span></td>
@@ -387,7 +396,7 @@ function populateTenantDropdown() {
     sortedTenants.forEach(tenant => {
         const option = document.createElement('option');
         option.value = tenant.id;
-        option.textContent = `${tenant.name} (${tenant.submeter})`;
+        option.textContent = `${tenant.name} [${tenant.building || 'N/A'}] (${tenant.submeter})`;
         readingTenantSelect.appendChild(option);
     });
 
@@ -409,6 +418,8 @@ function handleReadingTenantChange() {
     }
 
     // Populate Read-only details
+    refBuilding.textContent = tenant.building || 'N/A';
+    refBuilding.title = tenant.building || 'N/A';
     refSubmeterId.textContent = tenant.submeter;
     refUnitType.textContent = tenant.unitType.toUpperCase();
     refPrevReading.textContent = tenant.currentReading.toFixed(2);
@@ -426,6 +437,8 @@ function handleReadingTenantChange() {
 }
 
 function resetReadingFormFields() {
+    refBuilding.textContent = '--';
+    refBuilding.title = '--';
     refSubmeterId.textContent = '--';
     refUnitType.textContent = '--';
     refPrevReading.textContent = '--';
@@ -684,6 +697,7 @@ function renderTakeoff() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
+            <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${dateRangeText}</span></td>
             <td>${startRead.toFixed(2)}</td>
@@ -747,6 +761,7 @@ function exportToExcel() {
 
             takeoffData.push({
                 'Store Name': tenant.name,
+                'Building': tenant.building || 'N/A',
                 'Submeter ID': tenant.submeter,
                 'Unit Type': tenant.unitType.toUpperCase(),
                 'Billing Start Date': start,
@@ -763,6 +778,7 @@ function exportToExcel() {
         // --- 2. TENANT DIRECTORY SHEET DATA ---
         const directoryData = tenants.map(t => ({
             'Store Name': t.name,
+            'Building': t.building || 'N/A',
             'Unit Address': t.address,
             'Submeter ID': t.submeter,
             'Unit Type': t.unitType.toUpperCase(),

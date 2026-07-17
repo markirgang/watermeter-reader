@@ -53,6 +53,14 @@
                         <input type="hidden" id="tenantId">
                         
                         <div class="form-group">
+                            <label for="tenantBuilding">Building / Property *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="building" class="input-icon"></i>
+                                <input type="text" id="tenantBuilding" placeholder="e.g., 4026-4034 White Plains Rd" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
                             <label for="tenantName">Store / Tenant Name *</label>
                             <div class="input-icon-wrapper">
                                 <i data-lucide="store" class="input-icon"></i>
@@ -139,6 +147,7 @@
                             <thead>
                                 <tr>
                                     <th>Store Name</th>
+                                    <th>Building</th>
                                     <th>Address</th>
                                     <th>Submeter ID</th>
                                     <th>Unit</th>
@@ -172,14 +181,18 @@
                         </div>
 
                         <!-- Previous Reading Info Cards (Read-only reference) -->
-                        <div class="form-row" style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                            <div>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Building</span>
+                                <span id="refBuilding" style="font-weight: 600; color: var(--text-primary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="--">--</span>
+                            </div>
                             <div>
                                 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Submeter ID</span>
-                                <span id="refSubmeterId" style="font-weight: 600; color: var(--text-primary);">--</span>
+                                <span id="refSubmeterId" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
                             </div>
                             <div>
                                 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; display: block; text-transform: uppercase;">Unit Type</span>
-                                <span id="refUnitType" style="font-weight: 600; color: var(--text-primary);">--</span>
+                                <span id="refUnitType" style="font-weight: 600; color: var(--text-primary); display: block;">--</span>
                             </div>
                         </div>
 
@@ -313,6 +326,7 @@
                         <thead>
                             <tr>
                                 <th>Store Name</th>
+                                <th>Building</th>
                                 <th>Submeter ID</th>
                                 <th>Billing Period</th>
                                 <th>Start Read</th>
