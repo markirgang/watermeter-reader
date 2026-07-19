@@ -1055,7 +1055,7 @@ function renderReadings() {
     if (filteredReadings.length === 0) {
         readingTableBody.innerHTML = `
             <tr>
-                <td colspan="9">
+                <td colspan="10">
                     <div class="empty-state">
                         <i data-lucide="clipboard-list" style="width: 48px; height: 48px;"></i>
                         <p>${readings.length === 0 ? 'No readings logged yet.' : 'No matching readings found.'}</p>
@@ -1072,11 +1072,19 @@ function renderReadings() {
         const tenantName = tenant ? tenant.name : 'Unknown Tenant';
         const submeter = tenant ? tenant.submeter : 'N/A';
 
+        // Find prior date dynamically
+        const allTenantReadingsChronological = readings
+            .filter(r => r.tenantId === reading.tenantId)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+        const currentIdx = allTenantReadingsChronological.findIndex(r => r.id === reading.id);
+        const priorDateVal = currentIdx > 0 ? allTenantReadingsChronological[currentIdx - 1].date : (tenant ? tenant.initialDate : '');
+
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${formatDate(reading.date)}</td>
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenantName)}</strong></td>
             <td><code>${escapeHTML(submeter)}</code></td>
+            <td>${formatDate(priorDateVal)}</td>
+            <td>${formatDate(reading.date)}</td>
             <td>${reading.prevReading.toFixed(2)}</td>
             <td>${reading.currReading.toFixed(2)}</td>
             <td><strong style="color: var(--primary);">${reading.consumed.toFixed(2)}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">${reading.unitType.toUpperCase()}</span></td>
