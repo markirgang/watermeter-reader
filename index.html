@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Water Meter Reader - Property Management Portal</title>
+    <title>Subwater Reading Manager by Irgang Group</title>
     <meta name="description" content="Manage tenant water meter readings, track consumption, calculate billing costs, and export takeoff spreadsheets for property management software.">
     <link rel="stylesheet" href="styles.css">
     <!-- SheetJS for Excel Exports -->
@@ -20,8 +20,8 @@
         <!-- Header -->
         <header>
             <div class="logo-section">
-                <h1><i data-lucide="droplets"></i> AquaMeter Manager</h1>
-                <p>Commercial Property Subwater Meter Billing & Takeoff Portal</p>
+                <h1><i data-lucide="droplets"></i> Subwater Reading Manager</h1>
+                <p>by Irgang Group</p>
             </div>
             <div class="backup-actions" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                 <span id="syncStatusBadge" class="sync-status local-only" title="Not configured for cloud sync">
@@ -340,18 +340,94 @@
 
     <!-- Custom Modal for adding properties, tenants, addresses -->
     <div id="addOptionModal" class="modal-overlay" aria-hidden="true">
-        <div class="modal-container">
+        <div class="modal-container" style="max-width: 500px;">
             <div class="modal-header">
                 <h3 id="modalTitle"><i data-lucide="plus-circle"></i> Add Option</h3>
                 <button type="button" class="modal-close" id="closeModalBtn">&times;</button>
             </div>
             <form id="modalForm">
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label id="modalInputLabel" for="modalInputValue">Value *</label>
-                        <div class="input-icon-wrapper">
-                            <i id="modalInputIcon" data-lucide="plus" class="input-icon"></i>
-                            <input type="text" id="modalInputValue" required autocomplete="off">
+                    <!-- Tenant Name Mode Fields -->
+                    <div id="tenantNameModalFields" class="modal-fields-group">
+                        <div class="form-group">
+                            <label for="modalTenantNameValue">Store / Tenant Name *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="store" class="input-icon"></i>
+                                <input type="text" id="modalTenantNameValue" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Building/Property Mode Fields -->
+                    <div id="buildingModalFields" class="modal-fields-group" style="display: none;">
+                        <div class="form-group">
+                            <label for="buildingAddress1">Address 1 *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <input type="text" id="buildingAddress1" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="buildingAddress2">Address 2</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <input type="text" id="buildingAddress2" placeholder="e.g. Suite 200, Floor 3" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="buildingCity">City *</label>
+                                <input type="text" id="buildingCity" autocomplete="off">
+                            </div>
+                            <div class="form-group" style="width: 80px;">
+                                <label for="buildingState">State *</label>
+                                <input type="text" id="buildingState" placeholder="NY" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="buildingZip">Zip Code *</label>
+                                <input type="text" id="buildingZip" placeholder="10001" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Unit Address Mode Fields -->
+                    <div id="unitAddressModalFields" class="modal-fields-group" style="display: none;">
+                        <div class="form-group">
+                            <label for="unitAddress1">Address 1 *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <input type="text" id="unitAddress1" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="unitPremises">Premises *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="home" class="input-icon"></i>
+                                <input type="text" id="unitPremises" placeholder="e.g. Suite 4B or Store Front" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="unitContact">Contact *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="user" class="input-icon"></i>
+                                    <input type="text" id="unitContact" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="unitEmail">Email *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="mail" class="input-icon"></i>
+                                    <input type="email" id="unitEmail" placeholder="tenant@example.com" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="unitStoreNumber">Store Number *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="hash" class="input-icon"></i>
+                                <input type="text" id="unitStoreNumber" placeholder="e.g. Store #102" autocomplete="off">
+                            </div>
                         </div>
                     </div>
                 </div>
