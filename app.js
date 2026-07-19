@@ -1084,8 +1084,8 @@ function renderReadings() {
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenantName)}</strong></td>
             <td><code>${escapeHTML(submeter)}</code></td>
             <td>${formatDate(priorDateVal)}</td>
-            <td>${formatDate(reading.date)}</td>
             <td>${reading.prevReading.toFixed(2)}</td>
+            <td>${formatDate(reading.date)}</td>
             <td>${reading.currReading.toFixed(2)}</td>
             <td><strong style="color: var(--primary);">${reading.consumed.toFixed(2)}</strong></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${reading.unitType === 'gal' ? 'Gallons' : 'Cubic Feet'}</span></td>

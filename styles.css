@@ -837,36 +837,38 @@ tr:hover {
 
 /* Highly visible Add (+) and Edit action buttons */
 .btn-icon.add-btn {
-    background: var(--primary) !important;
-    color: #ffffff !important;
-    border: 1px solid var(--primary) !important;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    background: rgba(99, 102, 241, 0.15) !important;
+    color: #a5b4fc !important;
+    border: 1px solid rgba(99, 102, 241, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.1);
 }
 .btn-icon.add-btn:hover {
-    background: var(--primary-hover) !important;
-    border-color: var(--primary-hover) !important;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.6);
+    background: var(--primary) !important;
+    color: #ffffff !important;
+    border-color: var(--primary) !important;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
     transform: scale(1.05);
 }
 
 .btn-icon.edit-btn {
-    background: var(--warning) !important;
-    color: #111827 !important;
-    border: 1px solid var(--warning) !important;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.15) !important;
+    color: #fcd34d !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
 }
 .btn-icon.edit-btn:not(:disabled):hover {
-    background: #d97706 !important;
-    border-color: #d97706 !important;
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+    background: var(--warning) !important;
+    color: #111827 !important;
+    border-color: var(--warning) !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
     transform: scale(1.05);
 }
 .btn-icon.edit-btn:disabled {
-    opacity: 0.25 !important;
+    opacity: 0.35 !important;
     cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    color: var(--text-muted) !important;
+    background: rgba(245, 158, 11, 0.03) !important;
+    border-color: rgba(245, 158, 11, 0.1) !important;
+    color: rgba(245, 158, 11, 0.25) !important;
     box-shadow: none !important;
     transform: none !important;
 }
