@@ -834,3 +834,35 @@ tr:hover {
 .spin {
     animation: spin 1.5s linear infinite;
 }
+
+/* Highly visible Add (+) and Edit action buttons */
+.btn-icon.add-btn {
+    background: rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(99, 102, 241, 0.45);
+    color: #a5b4fc;
+}
+.btn-icon.add-btn:hover {
+    background: var(--primary-gradient);
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.btn-icon.edit-btn {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fde047;
+}
+.btn-icon.edit-btn:not(:disabled):hover {
+    background: var(--warning);
+    color: #111827;
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+.btn-icon.edit-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+}

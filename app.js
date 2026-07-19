@@ -262,6 +262,20 @@ function setupEventListeners() {
     addBuildingBtn.addEventListener('click', () => openModal('building'));
     addTenantBtn.addEventListener('click', () => openModal('tenantName'));
     addAddressBtn.addEventListener('click', () => openModal('address'));
+
+    const editBuildingBtn = document.getElementById('editBuildingBtn');
+    const editTenantNameBtn = document.getElementById('editTenantNameBtn');
+    const editAddressBtn = document.getElementById('editAddressBtn');
+
+    if (editBuildingBtn) {
+        editBuildingBtn.addEventListener('click', () => openModal('editBuilding'));
+    }
+    if (editTenantNameBtn) {
+        editTenantNameBtn.addEventListener('click', () => openModal('editTenantName'));
+    }
+    if (editAddressBtn) {
+        editAddressBtn.addEventListener('click', () => openModal('editAddress'));
+    }
     
     closeModalBtn.addEventListener('click', closeModal);
     cancelModalBtn.addEventListener('click', closeModal);
@@ -280,12 +294,40 @@ function setupEventListeners() {
         if (!tenantSubmeterInput.value) {
             tenantSubmeterInput.value = generateSubmeterId(tenantAddressInput.value);
         }
+        updateEditButtonsState();
     });
 
     // Building filter for tenant form
     tenantBuildingInput.addEventListener('change', () => {
         populateTenantFormDropdowns();
         renderTenants();
+        updateEditButtonsState();
+    });
+
+    tenantNameInput.addEventListener('change', () => {
+        const selectedName = tenantNameInput.value;
+        if (selectedName) {
+            const existingTenant = tenants.find(t => t.name === selectedName);
+            if (existingTenant) {
+                tenantBuildingInput.value = existingTenant.building || '';
+                populateTenantFormDropdowns();
+                tenantAddressInput.value = existingTenant.address || '';
+                tenantSubmeterInput.value = existingTenant.submeter || '';
+                tenantUnitSelect.value = existingTenant.unitType || 'cf';
+                tenantRateInput.value = existingTenant.rate || '';
+                tenantInitialReadingInput.value = existingTenant.initialReading || 0;
+                
+                if (tenantInitialDatePicker) {
+                    tenantInitialDatePicker.setDate(existingTenant.initialDate);
+                } else {
+                    tenantInitialDateInput.value = existingTenant.initialDate;
+                }
+                
+                renderTenants();
+                showToast(`Auto-populated details for "${selectedName}".`, 'info');
+            }
+        }
+        updateEditButtonsState();
     });
 
     // Building filter for readings tab
@@ -297,6 +339,19 @@ function setupEventListeners() {
     readingTenantSelect.addEventListener('change', handleReadingTenantChange);
     readingForm.addEventListener('submit', handleReadingSubmit);
     readingSearchInput.addEventListener('input', renderReadings);
+
+    // Reading History Ledger Filter dropdowns
+    const readingBuildingFilter = document.getElementById('readingBuildingFilter');
+    const readingTenantFilter = document.getElementById('readingTenantFilter');
+    if (readingBuildingFilter) {
+        readingBuildingFilter.addEventListener('change', () => {
+            updateReadingTenantFilter();
+            renderReadings();
+        });
+    }
+    if (readingTenantFilter) {
+        readingTenantFilter.addEventListener('change', renderReadings);
+    }
 
     // Takeoff Filters
     takeoffStartDate.addEventListener('change', renderTakeoff);
@@ -592,6 +647,7 @@ function resetTenantForm(keepBuilding = false) {
         tenantInitialDateInput.value = today;
     }
     lucide.createIcons();
+    updateEditButtonsState();
 }
 
 function getTenantReadingDetails(tenant) {
@@ -968,15 +1024,30 @@ function deleteReading(readingId) {
 
 function renderReadings() {
     const filter = readingSearchInput.value.toLowerCase();
+    const selectedBuilding = document.getElementById('readingBuildingFilter') ? document.getElementById('readingBuildingFilter').value : '';
+    const selectedTenantId = document.getElementById('readingTenantFilter') ? document.getElementById('readingTenantFilter').value : '';
     
     // Sort readings by date descending
     const sortedReadings = [...readings].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const filteredReadings = sortedReadings.filter(r => {
         const tenant = tenants.find(t => t.id === r.tenantId);
+        
+        // Filter by building
+        if (selectedBuilding && (!tenant || tenant.building !== selectedBuilding)) {
+            return false;
+        }
+        
+        // Filter by tenant
+        if (selectedTenantId && r.tenantId !== selectedTenantId) {
+            return false;
+        }
+        
         const name = tenant ? tenant.name.toLowerCase() : '';
         const submeter = tenant ? tenant.submeter.toLowerCase() : '';
-        return name.includes(filter) || submeter.includes(filter) || r.comments.toLowerCase().includes(filter);
+        const comments = r.comments ? r.comments.toLowerCase() : '';
+        
+        return name.includes(filter) || submeter.includes(filter) || comments.includes(filter);
     });
 
     readingTableBody.innerHTML = '';
@@ -1026,6 +1097,75 @@ function renderReadings() {
     });
 
     lucide.createIcons();
+}
+
+// --- READING LEDGER FILTERS ---
+function populateReadingFilters() {
+    const readingBuildingFilter = document.getElementById('readingBuildingFilter');
+    const readingTenantFilter = document.getElementById('readingTenantFilter');
+    if (!readingBuildingFilter || !readingTenantFilter) return;
+
+    const currentBuildingSelection = readingBuildingFilter.value;
+    const currentTenantSelection = readingTenantFilter.value;
+
+    // Get unique buildings from all active tenants
+    const buildingsSet = new Set();
+    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
+    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+
+    // Populate Building Dropdown
+    readingBuildingFilter.innerHTML = '<option value="">All Buildings</option>';
+    sortedBuildings.forEach(building => {
+        const option = document.createElement('option');
+        option.value = building;
+        option.textContent = building;
+        readingBuildingFilter.appendChild(option);
+    });
+
+    // Restore selection if valid
+    if (currentBuildingSelection && sortedBuildings.includes(currentBuildingSelection)) {
+        readingBuildingFilter.value = currentBuildingSelection;
+    }
+
+    // Populate Tenant Dropdown based on selected building
+    updateReadingTenantFilter();
+
+    // Restore tenant selection if valid for this building
+    const selectedBuilding = readingBuildingFilter.value;
+    const filteredTenants = selectedBuilding 
+        ? tenants.filter(t => t.building === selectedBuilding)
+        : tenants;
+    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
+        readingTenantFilter.value = currentTenantSelection;
+    }
+}
+
+function updateReadingTenantFilter() {
+    const readingBuildingFilter = document.getElementById('readingBuildingFilter');
+    const readingTenantFilter = document.getElementById('readingTenantFilter');
+    if (!readingTenantFilter || !readingBuildingFilter) return;
+
+    const currentTenantSelection = readingTenantFilter.value;
+    const selectedBuilding = readingBuildingFilter.value;
+
+    const filteredTenants = selectedBuilding 
+        ? tenants.filter(t => t.building === selectedBuilding)
+        : tenants;
+
+    // Sort tenants by name
+    const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
+
+    readingTenantFilter.innerHTML = '<option value="">All Tenants</option>';
+    sortedTenants.forEach(t => {
+        const option = document.createElement('option');
+        option.value = t.id;
+        option.textContent = `${t.name} (${t.submeter})`;
+        readingTenantFilter.appendChild(option);
+    });
+
+    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
+        readingTenantFilter.value = currentTenantSelection;
+    }
 }
 
 // --- TAKEOFF FILTERS POPULATION ---
@@ -1439,6 +1579,22 @@ function handleImportBackup(e) {
     reader.readAsText(file);
 }
 
+function updateEditButtonsState() {
+    const editBuildingBtn = document.getElementById('editBuildingBtn');
+    const editTenantNameBtn = document.getElementById('editTenantNameBtn');
+    const editAddressBtn = document.getElementById('editAddressBtn');
+    
+    if (editBuildingBtn) {
+        editBuildingBtn.disabled = !tenantBuildingInput.value;
+    }
+    if (editTenantNameBtn) {
+        editTenantNameBtn.disabled = !tenantNameInput.value;
+    }
+    if (editAddressBtn) {
+        editAddressBtn.disabled = !tenantAddressInput.value;
+    }
+}
+
 function formatBuildingAddress(b) {
     if (!b) return '';
     if (typeof b === 'string') return b;
@@ -1505,6 +1661,7 @@ function populateTenantFormDropdowns() {
     updateSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
     updateSelect(tenantNameInput, sortedNames, 'Select Store...');
     updateSelect(tenantAddressInput, sortedAddresses, 'Select Address...');
+    updateEditButtonsState();
 }
 
 function setRequiredForGroup(groupId, isRequired) {
@@ -1549,6 +1706,23 @@ function openModal(mode) {
         document.getElementById('buildingZip').value = '';
         
         setTimeout(() => document.getElementById('buildingAddress1').focus(), 100);
+    } else if (mode === 'editBuilding') {
+        const selectedVal = tenantBuildingInput.value;
+        const b = customBuildings.find(item => formatBuildingAddress(item) === selectedVal) || { address1: selectedVal };
+        
+        title = 'Edit Building / Property';
+        icon = 'building';
+        document.getElementById('buildingModalFields').style.display = 'block';
+        setRequiredForGroup('buildingModalFields', true);
+        document.getElementById('buildingAddress2').required = false;
+        
+        document.getElementById('buildingAddress1').value = b.address1 || '';
+        document.getElementById('buildingAddress2').value = b.address2 || '';
+        document.getElementById('buildingCity').value = b.city || '';
+        document.getElementById('buildingState').value = b.state || '';
+        document.getElementById('buildingZip').value = b.zipCode || '';
+        
+        setTimeout(() => document.getElementById('buildingAddress1').focus(), 100);
     } else if (mode === 'tenantName') {
         title = 'Add Store / Tenant Name';
         icon = 'store';
@@ -1557,6 +1731,17 @@ function openModal(mode) {
         
         // Clear values
         document.getElementById('modalTenantNameValue').value = '';
+        
+        setTimeout(() => document.getElementById('modalTenantNameValue').focus(), 100);
+    } else if (mode === 'editTenantName') {
+        const selectedVal = tenantNameInput.value;
+        
+        title = 'Edit Store / Tenant Name';
+        icon = 'store';
+        document.getElementById('tenantNameModalFields').style.display = 'block';
+        setRequiredForGroup('tenantNameModalFields', true);
+        
+        document.getElementById('modalTenantNameValue').value = selectedVal || '';
         
         setTimeout(() => document.getElementById('modalTenantNameValue').focus(), 100);
     } else if (mode === 'address') {
@@ -1571,6 +1756,22 @@ function openModal(mode) {
         document.getElementById('unitContact').value = '';
         document.getElementById('unitEmail').value = '';
         document.getElementById('unitStoreNumber').value = '';
+        
+        setTimeout(() => document.getElementById('unitAddress1').focus(), 100);
+    } else if (mode === 'editAddress') {
+        const selectedVal = tenantAddressInput.value;
+        const a = customAddresses.find(item => formatUnitAddress(item) === selectedVal) || { address1: selectedVal };
+        
+        title = 'Edit Unit Address';
+        icon = 'map-pin';
+        document.getElementById('unitAddressModalFields').style.display = 'block';
+        setRequiredForGroup('unitAddressModalFields', true);
+        
+        document.getElementById('unitAddress1').value = a.address1 || '';
+        document.getElementById('unitPremises').value = a.premises || '';
+        document.getElementById('unitContact').value = a.contact || '';
+        document.getElementById('unitEmail').value = a.email || '';
+        document.getElementById('unitStoreNumber').value = a.storeNumber || '';
         
         setTimeout(() => document.getElementById('unitAddress1').focus(), 100);
     }
@@ -1620,6 +1821,7 @@ function openEditReadingModal(readingId) {
     document.getElementById('editReadingId').value = reading.id;
     document.getElementById('editReadingTenantId').value = reading.tenantId;
     document.getElementById('editReadingTenantName').value = tenantName;
+    document.getElementById('editReadingPrev').value = reading.prevReading;
     document.getElementById('editReadingCurrent').value = reading.currReading;
     document.getElementById('editReadingComments').value = reading.comments || '';
 
@@ -1655,6 +1857,7 @@ function handleEditReadingSubmit(e) {
     const readingId = document.getElementById('editReadingId').value;
     const tenantId = document.getElementById('editReadingTenantId').value;
     const newCurrVal = parseFloat(document.getElementById('editReadingCurrent').value);
+    const newPrevVal = parseFloat(document.getElementById('editReadingPrev').value);
     const newDate = document.getElementById('editReadingDate').value;
     const newComments = document.getElementById('editReadingComments').value.trim();
 
@@ -1669,18 +1872,26 @@ function handleEditReadingSubmit(e) {
     const currentIndex = tenantReadings.findIndex(r => r.id === readingId);
     if (currentIndex === -1) return;
 
-    const prevReadingVal = currentIndex > 0 ? tenantReadings[currentIndex - 1].currReading : tenant.initialReading;
+    if (newCurrVal < newPrevVal) {
+        showToast(`Current reading value cannot be lower than the previous reading value (${newPrevVal.toFixed(2)}).`, 'error');
+        return;
+    }
+
+    // Validate newPrevVal against preceding reading if any
+    const beforePrevVal = currentIndex > 1 ? tenantReadings[currentIndex - 2].currReading : tenant.initialReading;
+    if (currentIndex > 0 && newPrevVal < beforePrevVal) {
+        showToast(`Previous reading cannot be lower than the preceding reading value (${beforePrevVal.toFixed(2)}).`, 'error');
+        return;
+    }
+
+    // Validate newCurrVal against subsequent reading if any
     const nextReadingVal = currentIndex < tenantReadings.length - 1 ? tenantReadings[currentIndex + 1].currReading : null;
-
-    if (newCurrVal < prevReadingVal) {
-        showToast(`Reading value cannot be lower than the previous reading value (${prevReadingVal.toFixed(2)}).`, 'error');
-        return;
-    }
     if (nextReadingVal !== null && newCurrVal > nextReadingVal) {
-        showToast(`Reading value cannot be higher than the subsequent reading value (${nextReadingVal.toFixed(2)}).`, 'error');
+        showToast(`Current reading cannot be higher than the subsequent reading value (${nextReadingVal.toFixed(2)}).`, 'error');
         return;
     }
 
+    // Date validation
     const prevDateVal = currentIndex > 0 ? tenantReadings[currentIndex - 1].date : tenant.initialDate;
     const nextDateVal = currentIndex < tenantReadings.length - 1 ? tenantReadings[currentIndex + 1].date : null;
 
@@ -1693,10 +1904,23 @@ function handleEditReadingSubmit(e) {
         return;
     }
 
+    // Update cascading values:
+    if (currentIndex > 0) {
+        // Update preceding reading's current reading
+        const prevReadingRecord = tenantReadings[currentIndex - 1];
+        prevReadingRecord.currReading = newPrevVal;
+        prevReadingRecord.synced = false;
+    } else {
+        // Update tenant's initial reading
+        tenant.initialReading = newPrevVal;
+        tenant.synced = false;
+    }
+
     // Update reading fields
     const reading = readings.find(r => r.id === readingId);
     if (reading) {
         reading.currReading = newCurrVal;
+        reading.prevReading = newPrevVal;
         reading.date = newDate;
         reading.comments = newComments;
         reading.synced = false;
@@ -1746,80 +1970,152 @@ function recalculateTenantHistory(tenantId) {
 function handleModalSubmit(e) {
     e.preventDefault();
     
-    if (modalMode === 'building') {
+    if (modalMode === 'building' || modalMode === 'editBuilding') {
         const address1 = document.getElementById('buildingAddress1').value.trim();
         const address2 = document.getElementById('buildingAddress2').value.trim();
         const city = document.getElementById('buildingCity').value.trim();
         const state = document.getElementById('buildingState').value.trim();
         const zipCode = document.getElementById('buildingZip').value.trim();
         
-        const buildingObj = {
-            id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            address1,
-            address2,
-            city,
-            state,
-            zipCode
-        };
+        const selectedVal = tenantBuildingInput.value;
+        const oldFormattedAddress = modalMode === 'editBuilding' ? selectedVal : '';
+        
+        let buildingObj;
+        if (modalMode === 'editBuilding') {
+            const existing = customBuildings.find(b => formatBuildingAddress(b) === selectedVal);
+            if (existing) {
+                buildingObj = existing;
+                buildingObj.address1 = address1;
+                buildingObj.address2 = address2;
+                buildingObj.city = city;
+                buildingObj.state = state;
+                buildingObj.zipCode = zipCode;
+            } else {
+                buildingObj = {
+                    id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    address1, address2, city, state, zipCode
+                };
+                customBuildings.push(buildingObj);
+            }
+        } else {
+            buildingObj = {
+                id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                address1, address2, city, state, zipCode
+            };
+            customBuildings.push(buildingObj);
+        }
         
         const formattedAddress = formatBuildingAddress(buildingObj);
         
-        // Avoid duplicate by formatted string comparison
-        const exists = customBuildings.some(b => formatBuildingAddress(b) === formattedAddress);
-        if (!exists) {
-            customBuildings.push(buildingObj);
-            saveData();
+        if (modalMode === 'editBuilding' && oldFormattedAddress && oldFormattedAddress !== formattedAddress) {
+            // Update tenants using old address
+            tenants.forEach(t => {
+                if (t.building === oldFormattedAddress) {
+                    t.building = formattedAddress;
+                    t.synced = false;
+                }
+            });
         }
         
+        saveData();
         populateTenantFormDropdowns();
         tenantBuildingInput.value = formattedAddress;
         populateTenantFormDropdowns(); // Re-run to filter other dropdowns for this building
         
         // Trigger active tenants list filter update
         renderTenants();
+        updateEditButtonsState();
         
-        showToast(`Property "${formattedAddress}" added successfully.`, 'success');
-    } else if (modalMode === 'tenantName') {
+        showToast(modalMode === 'editBuilding' ? 'Property address updated successfully.' : `Property "${formattedAddress}" added successfully.`, 'success');
+    } else if (modalMode === 'tenantName' || modalMode === 'editTenantName') {
         const value = document.getElementById('modalTenantNameValue').value.trim();
         if (!value) return;
         
-        if (!customTenantNames.includes(value)) {
-            customTenantNames.push(value);
-            saveData();
+        const selectedVal = tenantNameInput.value;
+        const oldName = modalMode === 'editTenantName' ? selectedVal : '';
+        
+        if (modalMode === 'editTenantName') {
+            const idx = customTenantNames.indexOf(oldName);
+            if (idx !== -1) {
+                customTenantNames[idx] = value;
+            } else if (!customTenantNames.includes(value)) {
+                customTenantNames.push(value);
+            }
+            // Update tenants using old name
+            if (oldName && oldName !== value) {
+                tenants.forEach(t => {
+                    if (t.name === oldName) {
+                        t.name = value;
+                        t.synced = false;
+                    }
+                });
+            }
+        } else {
+            if (!customTenantNames.includes(value)) {
+                customTenantNames.push(value);
+            }
         }
+        
+        saveData();
         populateTenantFormDropdowns();
         tenantNameInput.value = value;
-        showToast(`Tenant "${value}" added successfully.`, 'success');
-    } else if (modalMode === 'address') {
+        updateEditButtonsState();
+        showToast(modalMode === 'editTenantName' ? 'Tenant name updated successfully.' : `Tenant "${value}" added successfully.`, 'success');
+    } else if (modalMode === 'address' || modalMode === 'editAddress') {
         const address1 = document.getElementById('unitAddress1').value.trim();
         const premises = document.getElementById('unitPremises').value.trim();
         const contact = document.getElementById('unitContact').value.trim();
         const email = document.getElementById('unitEmail').value.trim();
         const storeNumber = document.getElementById('unitStoreNumber').value.trim();
         
-        const addressObj = {
-            id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-            address1,
-            premises,
-            contact,
-            email,
-            storeNumber
-        };
+        const selectedVal = tenantAddressInput.value;
+        const oldFormattedAddress = modalMode === 'editAddress' ? selectedVal : '';
+        
+        let addressObj;
+        if (modalMode === 'editAddress') {
+            const existing = customAddresses.find(a => formatUnitAddress(a) === selectedVal);
+            if (existing) {
+                addressObj = existing;
+                addressObj.address1 = address1;
+                addressObj.premises = premises;
+                addressObj.contact = contact;
+                addressObj.email = email;
+                addressObj.storeNumber = storeNumber;
+            } else {
+                addressObj = {
+                    id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    address1, premises, contact, email, storeNumber
+                };
+                customAddresses.push(addressObj);
+            }
+        } else {
+            addressObj = {
+                id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                address1, premises, contact, email, storeNumber
+            };
+            customAddresses.push(addressObj);
+        }
         
         const formattedAddress = formatUnitAddress(addressObj);
         
-        const exists = customAddresses.some(a => formatUnitAddress(a) === formattedAddress);
-        if (!exists) {
-            customAddresses.push(addressObj);
-            saveData();
+        if (modalMode === 'editAddress' && oldFormattedAddress && oldFormattedAddress !== formattedAddress) {
+            // Update tenants using old address
+            tenants.forEach(t => {
+                if (t.address === oldFormattedAddress) {
+                    t.address = formattedAddress;
+                    t.synced = false;
+                }
+            });
         }
         
+        saveData();
         populateTenantFormDropdowns();
         tenantAddressInput.value = formattedAddress;
         if (!tenantSubmeterInput.value) {
             tenantSubmeterInput.value = generateSubmeterId(formattedAddress);
         }
-        showToast(`Address "${formattedAddress}" added successfully.`, 'success');
+        updateEditButtonsState();
+        showToast(modalMode === 'editAddress' ? 'Unit address updated successfully.' : `Address "${formattedAddress}" added successfully.`, 'success');
     }
     
     closeModal();
@@ -1830,6 +2126,7 @@ function renderAll() {
     populateTenantFormDropdowns();
     renderTenants();
     populateReadingBuildingDropdown();
+    populateReadingFilters();
     renderReadings();
     populateTakeoffFilters();
     renderTakeoff();

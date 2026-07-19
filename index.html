@@ -71,12 +71,15 @@
                                         <option value="" disabled selected>Select Property...</option>
                                     </select>
                                 </div>
-                                <button type="button" id="addBuildingBtn" class="btn btn-secondary btn-icon" title="Add New Property">
+                                <button type="button" id="addBuildingBtn" class="btn btn-secondary btn-icon add-btn" title="Add New Property">
                                     <i data-lucide="plus"></i>
+                                </button>
+                                <button type="button" id="editBuildingBtn" class="btn btn-secondary btn-icon edit-btn" title="Edit Selected Property" disabled>
+                                    <i data-lucide="edit-3"></i>
                                 </button>
                             </div>
                         </div>
-
+ 
                         <div class="form-group">
                             <label for="tenantName">Store / Tenant Name *</label>
                             <div class="input-with-button">
@@ -86,12 +89,15 @@
                                         <option value="" disabled selected>Select Store...</option>
                                     </select>
                                 </div>
-                                <button type="button" id="addTenantBtn" class="btn btn-secondary btn-icon" title="Add New Tenant Name">
+                                <button type="button" id="addTenantBtn" class="btn btn-secondary btn-icon add-btn" title="Add New Tenant Name">
                                     <i data-lucide="plus"></i>
+                                </button>
+                                <button type="button" id="editTenantNameBtn" class="btn btn-secondary btn-icon edit-btn" title="Edit Selected Tenant Name" disabled>
+                                    <i data-lucide="edit-3"></i>
                                 </button>
                             </div>
                         </div>
-
+ 
                         <div class="form-group">
                             <label for="tenantAddress">Unit Address *</label>
                             <div class="input-with-button">
@@ -101,8 +107,11 @@
                                         <option value="" disabled selected>Select Address...</option>
                                     </select>
                                 </div>
-                                <button type="button" id="addAddressBtn" class="btn btn-secondary btn-icon" title="Add New Address">
+                                <button type="button" id="addAddressBtn" class="btn btn-secondary btn-icon add-btn" title="Add New Address">
                                     <i data-lucide="plus"></i>
+                                </button>
+                                <button type="button" id="editAddressBtn" class="btn btn-secondary btn-icon edit-btn" title="Edit Selected Address" disabled>
+                                    <i data-lucide="edit-3"></i>
                                 </button>
                             </div>
                         </div>
@@ -209,10 +218,30 @@
                     </button>
                 </div>
                 
-                <div class="table-header-controls" style="margin-top: 1.5rem;">
-                    <div class="search-input-wrapper">
+                <div class="table-header-controls" style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
+                    <div class="search-input-wrapper" style="flex: 1; min-width: 250px;">
                         <i data-lucide="search"></i>
-                        <input type="text" id="readingSearchInput" placeholder="Filter by store or submeter...">
+                        <input type="text" id="readingSearchInput" placeholder="Search comments or submeter...">
+                    </div>
+                    <div class="filter-group-row" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="readingBuildingFilter" style="margin-bottom: 0; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Building:</label>
+                            <div class="input-icon-wrapper" style="width: 180px;">
+                                <i data-lucide="building" class="input-icon" style="color: var(--text-muted); opacity: 0.7; font-size: 14px;"></i>
+                                <select id="readingBuildingFilter" class="select-sm">
+                                    <option value="">All Buildings</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="readingTenantFilter" style="margin-bottom: 0; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Tenant:</label>
+                            <div class="input-icon-wrapper" style="width: 180px;">
+                                <i data-lucide="users" class="input-icon" style="color: var(--text-muted); opacity: 0.7; font-size: 14px;"></i>
+                                <select id="readingTenantFilter" class="select-sm">
+                                    <option value="">All Tenants</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -550,6 +579,16 @@
                     <div class="form-group">
                         <label>Store / Tenant Name</label>
                         <input type="text" id="editReadingTenantName" readonly style="opacity: 0.7; cursor: not-allowed; background: rgba(15, 23, 42, 0.4);">
+                    </div>
+
+                    <div class="form-row" style="margin-bottom: 1.25rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="editReadingPrev">Previous Reading *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="gauge" class="input-icon"></i>
+                                <input type="number" id="editReadingPrev" step="0.01" min="0" required>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-row">
