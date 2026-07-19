@@ -870,3 +870,11 @@ tr:hover {
     box-shadow: none !important;
     transform: none !important;
 }
+
+.btn-icon svg {
+    width: 20px !important;
+    height: 20px !important;
+    stroke: currentColor !important;
+    stroke-width: 2.5px !important;
+    display: inline-block !important;
+}
