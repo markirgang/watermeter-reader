@@ -63,7 +63,13 @@
                         <input type="hidden" id="tenantId">
                         
                         <div class="form-group">
-                            <label for="tenantBuilding">Building / Property *</label>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.5rem;">
+                                <label for="tenantBuilding" style="margin-bottom: 0;">Building / Property *</label>
+                                <div style="display: flex; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <span style="width: 44px; text-align: center;">Add New</span>
+                                    <span style="width: 44px; text-align: center;">Edit</span>
+                                </div>
+                            </div>
                             <div class="input-with-button">
                                 <div class="input-icon-wrapper">
                                     <i data-lucide="building" class="input-icon"></i>
@@ -214,7 +220,7 @@
                 <div class="takeoff-header">
                     <h2 class="card-title" style="margin-bottom: 0;"><i data-lucide="history"></i> Reading History Ledger</h2>
                     <button id="openReadingModalBtn" class="btn btn-primary btn-sm" title="Log New Tenant Water Meter Reading">
-                        <i data-lucide="plus"></i> Log Reading
+                        <i data-lucide="plus"></i> Add Reading
                     </button>
                 </div>
                 
