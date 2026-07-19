@@ -1055,7 +1055,7 @@ function renderReadings() {
     if (filteredReadings.length === 0) {
         readingTableBody.innerHTML = `
             <tr>
-                <td colspan="10">
+                <td colspan="11">
                     <div class="empty-state">
                         <i data-lucide="clipboard-list" style="width: 48px; height: 48px;"></i>
                         <p>${readings.length === 0 ? 'No readings logged yet.' : 'No matching readings found.'}</p>
@@ -1087,7 +1087,8 @@ function renderReadings() {
             <td>${formatDate(reading.date)}</td>
             <td>${reading.prevReading.toFixed(2)}</td>
             <td>${reading.currReading.toFixed(2)}</td>
-            <td><strong style="color: var(--primary);">${reading.consumed.toFixed(2)}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">${reading.unitType.toUpperCase()}</span></td>
+            <td><strong style="color: var(--primary);">${reading.consumed.toFixed(2)}</strong></td>
+            <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${reading.unitType === 'gal' ? 'Gallons' : 'Cubic Feet'}</span></td>
             <td><strong style="color: var(--success);">$${reading.cost.toFixed(2)}</strong></td>
             <td><span class="helper-text" style="display: inline-block; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(reading.comments)}">${escapeHTML(reading.comments) || '-'}</span></td>
             <td>
