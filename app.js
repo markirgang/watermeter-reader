@@ -741,7 +741,7 @@ function renderTenants() {
             <td>
                 <div class="action-btn-group" style="justify-content: center;">
                     <button class="action-btn edit" onclick="editTenant('${tenant.id}')" title="Edit Tenant">
-                        <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                        <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
                     </button>
                     <button class="action-btn delete" onclick="deleteTenant('${tenant.id}')" title="Delete Tenant">
                         <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
@@ -1094,7 +1094,7 @@ function renderReadings() {
             <td>
                 <div class="action-btn-group" style="justify-content: center;">
                     <button class="action-btn edit" onclick="openEditReadingModal('${reading.id}')" title="Edit Reading">
-                        <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                        <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
                     </button>
                     <button class="action-btn delete" onclick="deleteReading('${reading.id}')" title="Delete Reading">
                         <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
