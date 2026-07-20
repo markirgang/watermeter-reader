@@ -308,6 +308,9 @@ function setupEventListeners() {
     const editBuildingBtn = document.getElementById('editBuildingBtn');
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
     const editAddressBtn = document.getElementById('editAddressBtn');
+    
+    const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
+    const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
 
     if (editBuildingBtn) {
         editBuildingBtn.addEventListener('click', () => openModal('editBuilding'));
@@ -317,6 +320,12 @@ function setupEventListeners() {
     }
     if (editAddressBtn) {
         editAddressBtn.addEventListener('click', () => openModal('editAddress'));
+    }
+    if (deleteBuildingBtn) {
+        deleteBuildingBtn.addEventListener('click', deleteBuilding);
+    }
+    if (deleteTenantNameBtn) {
+        deleteTenantNameBtn.addEventListener('click', deleteTenantName);
     }
     
     closeModalBtn.addEventListener('click', closeModal);
@@ -1694,6 +1703,9 @@ function updateEditButtonsState() {
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
     const editAddressBtn = document.getElementById('editAddressBtn');
     
+    const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
+    const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
+    
     if (editBuildingBtn) {
         editBuildingBtn.disabled = !tenantBuildingInput.value;
     }
@@ -1702,6 +1714,12 @@ function updateEditButtonsState() {
     }
     if (editAddressBtn) {
         editAddressBtn.disabled = !tenantAddressInput.value;
+    }
+    if (deleteBuildingBtn) {
+        deleteBuildingBtn.disabled = !tenantBuildingInput.value;
+    }
+    if (deleteTenantNameBtn) {
+        deleteTenantNameBtn.disabled = !tenantNameInput.value;
     }
 }
 
@@ -1715,6 +1733,97 @@ function formatUnitAddress(a) {
     if (!a) return '';
     if (typeof a === 'string') return a;
     return `${a.address1} (Store: ${a.storeNumber}, Premises: ${a.premises}, Contact: ${a.contact}, Email: ${a.email})`;
+}
+
+function deleteBuilding() {
+    const buildingId = tenantBuildingInput.value;
+    if (!buildingId) {
+        showToast('Please select a building to delete.', 'error');
+        return;
+    }
+    const building = customBuildings.find(b => b.id === buildingId);
+    if (!building) return;
+
+    const hasTenants = tenants.some(t => t.buildingId === buildingId);
+    let confirmMsg = `Are you sure you want to delete the building "${formatBuildingAddress(building)}"?`;
+    if (hasTenants) {
+        confirmMsg += `\n\nWARNING: Deleting this building will also delete all associated active tenants and their reading history!`;
+    }
+
+    if (confirm(confirmMsg)) {
+        if (hasTenants) {
+            // Find all tenants in this building
+            const tenantsToDelete = tenants.filter(t => t.buildingId === buildingId);
+            tenantsToDelete.forEach(t => {
+                // Register deletions for sync
+                const tenantReadingIds = readings.filter(r => r.tenantId === t.id).map(r => r.id);
+                registerDeletion(t.id);
+                tenantReadingIds.forEach(rid => registerDeletion(rid));
+                
+                // Remove readings
+                readings = readings.filter(r => r.tenantId !== t.id);
+            });
+            // Remove tenants
+            tenants = tenants.filter(t => t.buildingId !== buildingId);
+        }
+
+        // Delete from customBuildings
+        customBuildings = customBuildings.filter(b => b.id !== buildingId);
+
+        saveData();
+        tenantBuildingInput.value = '';
+        populateTenantFormDropdowns();
+        renderAll();
+
+        showToast('Building and associated data deleted successfully.', 'success');
+        if (autoSyncEnabled && syncUrl) {
+            syncWithCloud();
+        }
+    }
+}
+
+function deleteTenantName() {
+    const selectedName = tenantNameInput.value;
+    if (!selectedName) {
+        showToast('Please select a store/tenant name to delete.', 'error');
+        return;
+    }
+
+    const hasActiveTenants = tenants.some(t => t.name === selectedName);
+    let confirmMsg = `Are you sure you want to delete the tenant name "${selectedName}" from the list?`;
+    if (hasActiveTenants) {
+        confirmMsg += `\n\nWARNING: Deleting this tenant name will also delete all associated active tenants and their reading history!`;
+    }
+
+    if (confirm(confirmMsg)) {
+        if (hasActiveTenants) {
+            const tenantsToDelete = tenants.filter(t => t.name === selectedName);
+            tenantsToDelete.forEach(t => {
+                // Register deletions for sync
+                const tenantReadingIds = readings.filter(r => r.tenantId === t.id).map(r => r.id);
+                registerDeletion(t.id);
+                tenantReadingIds.forEach(rid => registerDeletion(rid));
+                
+                // Remove readings
+                readings = readings.filter(r => r.tenantId !== t.id);
+            });
+            // Remove tenants
+            tenants = tenants.filter(t => t.name !== selectedName);
+        }
+
+        // Delete from customTenantNames
+        customTenantNames = customTenantNames.filter(n => n !== selectedName);
+
+        saveData();
+        tenantNameInput.value = '';
+        populateTenantFormDropdowns();
+        renderAll();
+
+        showToast('Tenant name and associated data deleted successfully.', 'success');
+        if (autoSyncEnabled && syncUrl) {
+            syncWithCloud();
+        }
+    }
 }
 
 // --- DROPDOWNS & MODAL ENGINE ---
