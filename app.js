@@ -360,10 +360,11 @@ function migrateBuildingsData() {
             // Find existing building with same formatted address or address1 line case-insensitively
             let b = customBuildings.find(item => {
                 const formatted = formatBuildingAddress(item);
+                const tBuildingStr = (t.building || '').toString().toLowerCase();
                 return formatted === t.building || 
                        item.address1 === t.building || 
-                       formatted.toLowerCase() === t.building.toLowerCase() ||
-                       item.address1.toLowerCase() === t.building.toLowerCase();
+                       formatted.toLowerCase() === tBuildingStr ||
+                       item.address1.toLowerCase() === tBuildingStr;
             });
             if (!b) {
                 b = {
@@ -694,7 +695,7 @@ function handleTenantSubmit(e) {
     }
 
     // Check for duplicate submeter ID
-    const isDuplicate = tenants.some(t => t.submeter.toLowerCase() === submeter.toLowerCase() && t.id !== id);
+    const isDuplicate = tenants.some(t => (t.submeter || '').toString().toLowerCase() === submeter.toLowerCase() && t.id !== id);
     if (isDuplicate) {
         showToast(`Submeter ID "${submeter}" is already assigned to another tenant.`, 'error');
         return;
@@ -906,10 +907,15 @@ function renderTenants() {
         if (t.buildingId !== selectedBuildingId) return false;
         
         // Search filter matching
-        return t.name.toLowerCase().includes(filter) || 
-               (t.company && t.company.toLowerCase().includes(filter)) ||
-               t.submeter.toLowerCase().includes(filter) ||
-               t.address.toLowerCase().includes(filter);
+        const tName = (t.name || '').toString().toLowerCase();
+        const tCompany = (t.company || '').toString().toLowerCase();
+        const tSubmeter = (t.submeter || '').toString().toLowerCase();
+        const tAddress = (t.address || '').toString().toLowerCase();
+        
+        return tName.includes(filter) || 
+               tCompany.includes(filter) ||
+               tSubmeter.includes(filter) ||
+               tAddress.includes(filter);
     });
 
     tenantTableBody.innerHTML = '';
@@ -1285,9 +1291,9 @@ function renderReadings() {
             }
         }
         
-        const name = tenant ? tenant.name.toLowerCase() : '';
-        const submeter = tenant ? tenant.submeter.toLowerCase() : '';
-        const comments = r.comments ? r.comments.toLowerCase() : '';
+        const name = tenant && tenant.name ? tenant.name.toString().toLowerCase() : '';
+        const submeter = tenant && tenant.submeter ? tenant.submeter.toString().toLowerCase() : '';
+        const comments = r.comments ? r.comments.toString().toLowerCase() : '';
         
         return name.includes(filter) || submeter.includes(filter) || comments.includes(filter);
     });
