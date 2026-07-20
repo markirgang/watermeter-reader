@@ -35,21 +35,33 @@ function doPost(e) {
     if (!tenantsSheet) {
       tenantsSheet = spreadsheet.insertSheet("Tenants");
       // Set headers
-      tenantsSheet.appendRow(["id", "building", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"]);
+      tenantsSheet.appendRow(["id", "building", "buildingId", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"]);
     } else {
       const lastCol = tenantsSheet.getLastColumn();
       if (lastCol === 0) {
-        tenantsSheet.appendRow(["id", "building", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"]);
+        tenantsSheet.appendRow(["id", "building", "buildingId", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"]);
       } else {
         const range = tenantsSheet.getRange(1, 1, 1, lastCol);
         const headers = range.getValues()[0].map(function(h) { return h.toString().trim().toLowerCase(); });
+        
         if (headers.indexOf("company") === -1) {
-          const nameIndex = headers.indexOf("name");
+          const nameIndex = tenantsSheet.getRange(1, 1, 1, tenantsSheet.getLastColumn()).getValues()[0].map(function(h) { return h.toString().trim().toLowerCase(); }).indexOf("name");
           if (nameIndex !== -1) {
             tenantsSheet.insertColumnAfter(nameIndex + 1);
             tenantsSheet.getRange(1, nameIndex + 2).setValue("company");
           } else {
-            tenantsSheet.getRange(1, lastCol + 1).setValue("company");
+            tenantsSheet.getRange(1, tenantsSheet.getLastColumn() + 1).setValue("company");
+          }
+        }
+        
+        const headersUpdated = tenantsSheet.getRange(1, 1, 1, tenantsSheet.getLastColumn()).getValues()[0].map(function(h) { return h.toString().trim().toLowerCase(); });
+        if (headersUpdated.indexOf("buildingid") === -1) {
+          const buildingIndex = headersUpdated.indexOf("building");
+          if (buildingIndex !== -1) {
+            tenantsSheet.insertColumnAfter(buildingIndex + 1);
+            tenantsSheet.getRange(1, buildingIndex + 2).setValue("buildingId");
+          } else {
+            tenantsSheet.getRange(1, tenantsSheet.getLastColumn() + 1).setValue("buildingId");
           }
         }
       }
@@ -72,7 +84,7 @@ function doPost(e) {
     // Sync Tenants
     if (payload.tenants && payload.tenants.length > 0) {
       syncRecords(tenantsSheet, payload.tenants, [
-        "id", "building", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"
+        "id", "building", "buildingId", "name", "company", "address", "submeter", "unitType", "rate", "initialReading", "initialDate", "currentReading", "currentDate"
       ]);
     }
     

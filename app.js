@@ -184,6 +184,9 @@ function loadData() {
         customBuildings = storedCustomBuildings ? JSON.parse(storedCustomBuildings) : [];
         customTenantNames = storedCustomTenantNames ? JSON.parse(storedCustomTenantNames) : [];
         customAddresses = storedCustomAddresses ? JSON.parse(storedCustomAddresses) : [];
+        
+        // Run data migration for building IDs
+        migrateBuildingsData();
     } catch (e) {
         showToast('Error loading saved data from browser storage.', 'error');
         tenants = [];
@@ -191,6 +194,44 @@ function loadData() {
         customBuildings = [];
         customTenantNames = [];
         customAddresses = [];
+    }
+}
+
+function migrateBuildingsData() {
+    let updated = false;
+    
+    // Clean up customBuildings just in case any entries are strings (convert them to objects)
+    customBuildings = customBuildings.map(b => {
+        if (typeof b === 'string') {
+            updated = true;
+            return {
+                id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                address1: b,
+                address2: '', city: '', state: '', zipCode: ''
+            };
+        }
+        return b;
+    });
+
+    tenants.forEach(t => {
+        if (t.building && !t.buildingId) {
+            // Find existing building with same formatted address
+            let b = customBuildings.find(item => formatBuildingAddress(item) === t.building);
+            if (!b) {
+                b = {
+                    id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    address1: t.building,
+                    address2: '', city: '', state: '', zipCode: ''
+                };
+                customBuildings.push(b);
+            }
+            t.buildingId = b.id;
+            updated = true;
+        }
+    });
+
+    if (updated) {
+        saveData();
     }
 }
 
@@ -310,7 +351,7 @@ function setupEventListeners() {
         if (selectedName) {
             const existingTenant = tenants.find(t => t.name === selectedName);
             if (existingTenant) {
-                tenantBuildingInput.value = existingTenant.building || '';
+                tenantBuildingInput.value = existingTenant.buildingId || '';
                 populateTenantFormDropdowns();
                 tenantAddressInput.value = existingTenant.address || '';
                 tenantSubmeterInput.value = existingTenant.submeter || '';
@@ -480,7 +521,9 @@ function handleTenantSubmit(e) {
     e.preventDefault();
 
     const id = tenantIdInput.value;
-    const building = tenantBuildingInput.value.trim();
+    const buildingId = tenantBuildingInput.value.trim();
+    const buildingObj = customBuildings.find(b => b.id === buildingId);
+    const building = buildingObj ? formatBuildingAddress(buildingObj) : '';
     const name = tenantNameInput.value.trim();
     const company = tenantCompanyInput.value.trim();
     const address = tenantAddressInput.value.trim();
@@ -524,6 +567,7 @@ function handleTenantSubmit(e) {
             const oldTenant = tenants[index];
             tenants[index] = {
                 ...oldTenant,
+                buildingId,
                 building,
                 name,
                 company,
@@ -546,6 +590,7 @@ function handleTenantSubmit(e) {
         // Create mode
         const newTenant = {
             id: 'tenant_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            buildingId,
             building,
             name,
             company,
@@ -578,7 +623,7 @@ function editTenant(id) {
 
     editingTenantId = tenant.id;
     tenantIdInput.value = tenant.id;
-    tenantBuildingInput.value = tenant.building || '';
+    tenantBuildingInput.value = tenant.buildingId || '';
     tenantNameInput.value = tenant.name;
     tenantCompanyInput.value = tenant.company || '';
     tenantAddressInput.value = tenant.address;
@@ -681,11 +726,11 @@ function getTenantReadingDetails(tenant) {
 }
 
 function renderTenants() {
-    const selectedBuilding = tenantBuildingInput.value;
+    const selectedBuildingId = tenantBuildingInput.value;
     const filter = tenantSearchInput.value.toLowerCase();
     
     // If no building is selected, show an empty state prompting them to select a building
-    if (!selectedBuilding) {
+    if (!selectedBuildingId) {
         tenantTableBody.innerHTML = `
             <tr>
                 <td colspan="11">
@@ -701,8 +746,8 @@ function renderTenants() {
     }
 
     const filteredTenants = tenants.filter(t => {
-        // Must match selected building
-        if (t.building !== selectedBuilding) return false;
+        // Must match selected building ID
+        if (t.buildingId !== selectedBuildingId) return false;
         
         // Search filter matching
         return t.name.toLowerCase().includes(filter) || 
@@ -767,18 +812,35 @@ function populateReadingBuildingDropdown() {
     const currentBuilding = readingBuildingSelect.value;
     readingBuildingSelect.innerHTML = '<option value="" disabled selected>Choose a building...</option>';
     
-    const buildingSet = new Set();
-    tenants.forEach(t => { if (t.building) buildingSet.add(t.building); });
-    const sortedBuildings = Array.from(buildingSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    const buildingsMap = new Map();
+    tenants.forEach(t => {
+        if (t.buildingId) {
+            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            if (!bObj) {
+                bObj = {
+                    id: t.buildingId,
+                    address1: t.building || 'Unknown Building',
+                    address2: '', city: '', state: '', zipCode: ''
+                };
+            }
+            buildingsMap.set(t.buildingId, bObj);
+        }
+    });
     
-    sortedBuildings.forEach(building => {
+    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+        const addrA = formatBuildingAddress(a);
+        const addrB = formatBuildingAddress(b);
+        return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
+    });
+    
+    sortedBuildings.forEach(b => {
         const option = document.createElement('option');
-        option.value = building;
-        option.textContent = building;
+        option.value = b.id;
+        option.textContent = formatBuildingAddress(b);
         readingBuildingSelect.appendChild(option);
     });
     
-    if (currentBuilding && sortedBuildings.includes(currentBuilding)) {
+    if (currentBuilding && buildingsMap.has(currentBuilding)) {
         readingBuildingSelect.value = currentBuilding;
         populateTenantDropdown(currentBuilding);
     } else {
@@ -788,11 +850,11 @@ function populateReadingBuildingDropdown() {
     }
 }
 
-function populateTenantDropdown(selectedBuilding) {
+function populateTenantDropdown(selectedBuildingId) {
     const currentSelection = readingTenantSelect.value;
     readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
     
-    if (!selectedBuilding) {
+    if (!selectedBuildingId) {
         readingTenantSelect.disabled = true;
         resetReadingFormFields(true);
         return;
@@ -800,8 +862,7 @@ function populateTenantDropdown(selectedBuilding) {
     
     readingTenantSelect.disabled = false;
     
-    // Filter tenants by building
-    const filteredTenants = tenants.filter(t => t.building === selectedBuilding);
+    const filteredTenants = tenants.filter(t => t.buildingId === selectedBuildingId);
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
     
     sortedTenants.forEach(tenant => {
@@ -1130,21 +1191,33 @@ function populateReadingFilters() {
     const currentTenantSelection = readingTenantFilter.value;
 
     // Get unique buildings from all active tenants
-    const buildingsSet = new Set();
-    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
-    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    const buildingsMap = new Map();
+    tenants.forEach(t => {
+        if (t.buildingId) {
+            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            if (!bObj) {
+                bObj = { id: t.buildingId, address1: t.building || 'Unknown Building', address2: '', city: '', state: '', zipCode: '' };
+            }
+            buildingsMap.set(t.buildingId, bObj);
+        }
+    });
+    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+        const addrA = formatBuildingAddress(a);
+        const addrB = formatBuildingAddress(b);
+        return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
+    });
 
     // Populate Building Dropdown
     readingBuildingFilter.innerHTML = '<option value="">All Buildings</option>';
-    sortedBuildings.forEach(building => {
+    sortedBuildings.forEach(b => {
         const option = document.createElement('option');
-        option.value = building;
-        option.textContent = building;
+        option.value = b.id;
+        option.textContent = formatBuildingAddress(b);
         readingBuildingFilter.appendChild(option);
     });
 
     // Restore selection if valid
-    if (currentBuildingSelection && sortedBuildings.includes(currentBuildingSelection)) {
+    if (currentBuildingSelection && buildingsMap.has(currentBuildingSelection)) {
         readingBuildingFilter.value = currentBuildingSelection;
     }
 
@@ -1152,9 +1225,9 @@ function populateReadingFilters() {
     updateReadingTenantFilter();
 
     // Restore tenant selection if valid for this building
-    const selectedBuilding = readingBuildingFilter.value;
-    const filteredTenants = selectedBuilding 
-        ? tenants.filter(t => t.building === selectedBuilding)
+    const selectedBuildingId = readingBuildingFilter.value;
+    const filteredTenants = selectedBuildingId 
+        ? tenants.filter(t => t.buildingId === selectedBuildingId)
         : tenants;
     if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
         readingTenantFilter.value = currentTenantSelection;
@@ -1167,10 +1240,10 @@ function updateReadingTenantFilter() {
     if (!readingTenantFilter || !readingBuildingFilter) return;
 
     const currentTenantSelection = readingTenantFilter.value;
-    const selectedBuilding = readingBuildingFilter.value;
+    const selectedBuildingId = readingBuildingFilter.value;
 
-    const filteredTenants = selectedBuilding 
-        ? tenants.filter(t => t.building === selectedBuilding)
+    const filteredTenants = selectedBuildingId 
+        ? tenants.filter(t => t.buildingId === selectedBuildingId)
         : tenants;
 
     // Sort tenants by name
@@ -1197,21 +1270,33 @@ function populateTakeoffFilters() {
     const currentTenantSelection = takeoffTenantFilter.value;
 
     // Get unique buildings from all active tenants
-    const buildingsSet = new Set();
-    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
-    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    const buildingsMap = new Map();
+    tenants.forEach(t => {
+        if (t.buildingId) {
+            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            if (!bObj) {
+                bObj = { id: t.buildingId, address1: t.building || 'Unknown Building', address2: '', city: '', state: '', zipCode: '' };
+            }
+            buildingsMap.set(t.buildingId, bObj);
+        }
+    });
+    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+        const addrA = formatBuildingAddress(a);
+        const addrB = formatBuildingAddress(b);
+        return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
+    });
 
     // Populate Building Dropdown
     takeoffBuildingFilter.innerHTML = '<option value="">All Buildings</option>';
-    sortedBuildings.forEach(building => {
+    sortedBuildings.forEach(b => {
         const option = document.createElement('option');
-        option.value = building;
-        option.textContent = building;
+        option.value = b.id;
+        option.textContent = formatBuildingAddress(b);
         takeoffBuildingFilter.appendChild(option);
     });
 
     // Restore selection if valid
-    if (currentBuildingSelection && sortedBuildings.includes(currentBuildingSelection)) {
+    if (currentBuildingSelection && buildingsMap.has(currentBuildingSelection)) {
         takeoffBuildingFilter.value = currentBuildingSelection;
     }
 
@@ -1219,9 +1304,9 @@ function populateTakeoffFilters() {
     updateTakeoffTenantFilter();
 
     // Restore tenant selection if valid for this building
-    const selectedBuilding = takeoffBuildingFilter.value;
-    const filteredTenants = selectedBuilding 
-        ? tenants.filter(t => t.building === selectedBuilding)
+    const selectedBuildingId = takeoffBuildingFilter.value;
+    const filteredTenants = selectedBuildingId 
+        ? tenants.filter(t => t.buildingId === selectedBuildingId)
         : tenants;
     if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
         takeoffTenantFilter.value = currentTenantSelection;
@@ -1232,10 +1317,10 @@ function updateTakeoffTenantFilter() {
     if (!takeoffTenantFilter) return;
 
     const currentTenantSelection = takeoffTenantFilter.value;
-    const selectedBuilding = takeoffBuildingFilter.value;
+    const selectedBuildingId = takeoffBuildingFilter.value;
 
-    const filteredTenants = selectedBuilding 
-        ? tenants.filter(t => t.building === selectedBuilding)
+    const filteredTenants = selectedBuildingId 
+        ? tenants.filter(t => t.buildingId === selectedBuildingId)
         : tenants;
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1270,7 +1355,7 @@ function renderTakeoff() {
 
     // Filter tenants based on building/tenant dropdown filters
     const filteredTenants = tenants.filter(t => {
-        const matchesBuilding = !selectedBuilding || t.building === selectedBuilding;
+        const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
         const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
         return matchesBuilding && matchesTenant;
     });
@@ -1419,7 +1504,7 @@ function exportToExcel() {
 
         // Filter tenants based on active takeoff filters
         const filteredTenants = tenants.filter(t => {
-            const matchesBuilding = !selectedBuilding || t.building === selectedBuilding;
+            const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
             const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
             return matchesBuilding && matchesTenant;
         });
@@ -1634,23 +1719,35 @@ function formatUnitAddress(a) {
 
 // --- DROPDOWNS & MODAL ENGINE ---
 function populateTenantFormDropdowns() {
-    const selectedBuilding = tenantBuildingInput.value;
+    const selectedBuildingId = tenantBuildingInput.value;
 
-    const buildingsSet = new Set();
-    tenants.forEach(t => { if (t.building) buildingsSet.add(t.building); });
+    const buildingsMap = new Map();
     customBuildings.forEach(b => {
-        if (b) {
-            buildingsSet.add(typeof b === 'string' ? b : formatBuildingAddress(b));
+        if (b && b.id) {
+            buildingsMap.set(b.id, b);
         }
     });
-    const sortedBuildings = Array.from(buildingsSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+    tenants.forEach(t => {
+        if (t.buildingId && !buildingsMap.has(t.buildingId)) {
+            buildingsMap.set(t.buildingId, {
+                id: t.buildingId,
+                address1: t.building || 'Unknown Building',
+                address2: '', city: '', state: '', zipCode: ''
+            });
+        }
+    });
+    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+        const addrA = formatBuildingAddress(a);
+        const addrB = formatBuildingAddress(b);
+        return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
+    });
     
     const namesSet = new Set();
     const addressesSet = new Set();
 
-    // Filter store names and addresses by the currently selected building, if any
+    // Filter store names and addresses by the currently selected building ID, if any
     tenants.forEach(t => {
-        if (!selectedBuilding || t.building === selectedBuilding) {
+        if (!selectedBuildingId || t.buildingId === selectedBuildingId) {
             if (t.name) namesSet.add(t.name);
             if (t.address) addressesSet.add(t.address);
         }
@@ -1683,7 +1780,23 @@ function populateTenantFormDropdowns() {
         }
     };
 
-    updateSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
+    const updateBuildingSelect = (selectEl, buildingsList, defaultText) => {
+        const currentValue = selectEl.value;
+        selectEl.innerHTML = `<option value="" disabled selected>${defaultText}</option>`;
+        
+        buildingsList.forEach(b => {
+            const option = document.createElement('option');
+            option.value = b.id;
+            option.textContent = formatBuildingAddress(b);
+            selectEl.appendChild(option);
+        });
+        
+        if (currentValue && buildingsList.some(b => b.id === currentValue)) {
+            selectEl.value = currentValue;
+        }
+    };
+
+    updateBuildingSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
     updateSelect(tenantNameInput, sortedNames, 'Select Store...');
     updateSelect(tenantAddressInput, sortedAddresses, 'Select Address...');
     updateEditButtonsState();
@@ -1732,8 +1845,8 @@ function openModal(mode) {
         
         setTimeout(() => document.getElementById('buildingAddress1').focus(), 100);
     } else if (mode === 'editBuilding') {
-        const selectedVal = tenantBuildingInput.value;
-        const b = customBuildings.find(item => formatBuildingAddress(item) === selectedVal) || { address1: selectedVal };
+        const selectedVal = tenantBuildingInput.value; // buildingId
+        const b = customBuildings.find(item => item.id === selectedVal) || { address1: selectedVal };
         
         title = 'Edit Building / Property';
         icon = 'building';
@@ -2002,13 +2115,14 @@ function handleModalSubmit(e) {
         const state = document.getElementById('buildingState').value.trim();
         const zipCode = document.getElementById('buildingZip').value.trim();
         
-        const selectedVal = tenantBuildingInput.value;
-        const oldFormattedAddress = modalMode === 'editBuilding' ? selectedVal : '';
-        
+        const buildingId = tenantBuildingInput.value; // selected building ID
+        let oldFormattedAddress = '';
         let buildingObj;
+        
         if (modalMode === 'editBuilding') {
-            const existing = customBuildings.find(b => formatBuildingAddress(b) === selectedVal);
+            const existing = customBuildings.find(b => b.id === buildingId);
             if (existing) {
+                oldFormattedAddress = formatBuildingAddress(existing);
                 buildingObj = existing;
                 buildingObj.address1 = address1;
                 buildingObj.address2 = address2;
@@ -2033,9 +2147,9 @@ function handleModalSubmit(e) {
         const formattedAddress = formatBuildingAddress(buildingObj);
         
         if (modalMode === 'editBuilding' && oldFormattedAddress && oldFormattedAddress !== formattedAddress) {
-            // Update tenants using old address
+            // Update tenants using this building ID
             tenants.forEach(t => {
-                if (t.building === oldFormattedAddress) {
+                if (t.buildingId === buildingObj.id) {
                     t.building = formattedAddress;
                     t.synced = false;
                 }
@@ -2044,7 +2158,7 @@ function handleModalSubmit(e) {
         
         saveData();
         populateTenantFormDropdowns();
-        tenantBuildingInput.value = formattedAddress;
+        tenantBuildingInput.value = buildingObj.id;
         populateTenantFormDropdowns(); // Re-run to filter other dropdowns for this building
         
         // Trigger active tenants list filter update
