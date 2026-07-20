@@ -201,6 +201,7 @@ function migrateBuildingsData() {
     let updated = false;
     
     // Clean up customBuildings just in case any entries are strings (convert them to objects)
+    // and normalize property casing
     customBuildings = customBuildings.map(b => {
         if (typeof b === 'string') {
             updated = true;
@@ -210,13 +211,160 @@ function migrateBuildingsData() {
                 address2: '', city: '', state: '', zipCode: ''
             };
         }
-        return b;
+        
+        const normalized = { ...b };
+        
+        // Normalize id / ID / Id -> id
+        if (b.ID !== undefined && b.id === undefined) {
+            normalized.id = b.ID;
+            delete normalized.ID;
+            updated = true;
+        }
+        if (b.Id !== undefined && b.id === undefined) {
+            normalized.id = b.Id;
+            delete normalized.Id;
+            updated = true;
+        }
+        
+        // Normalize zipCode / zipcode -> zipCode
+        if (b.zipcode !== undefined && b.zipCode === undefined) {
+            normalized.zipCode = b.zipcode;
+            delete normalized.zipcode;
+            updated = true;
+        }
+        
+        return normalized;
     });
 
+    // Normalize case-insensitive property keys for tenants
+    tenants = tenants.map(t => {
+        const normalized = { ...t };
+
+        // Normalize id / ID / Id -> id
+        if (t.ID !== undefined && t.id === undefined) {
+            normalized.id = t.ID;
+            delete normalized.ID;
+            updated = true;
+        }
+        if (t.Id !== undefined && t.id === undefined) {
+            normalized.id = t.Id;
+            delete normalized.Id;
+            updated = true;
+        }
+
+        // Normalize buildingId / buildingID / buildingid -> buildingId
+        if (t.buildingid !== undefined && t.buildingId === undefined) {
+            normalized.buildingId = t.buildingid;
+            delete normalized.buildingid;
+            updated = true;
+        }
+        if (t.buildingID !== undefined && t.buildingId === undefined) {
+            normalized.buildingId = t.buildingID;
+            delete normalized.buildingID;
+            updated = true;
+        }
+
+        // Normalize unitType / unittype -> unitType
+        if (t.unittype !== undefined && t.unitType === undefined) {
+            normalized.unitType = t.unittype;
+            delete normalized.unittype;
+            updated = true;
+        }
+
+        // Normalize initialReading / initialreading -> initialReading
+        if (t.initialreading !== undefined && t.initialReading === undefined) {
+            normalized.initialReading = t.initialreading;
+            delete normalized.initialreading;
+            updated = true;
+        }
+
+        // Normalize initialDate / initialdate -> initialDate
+        if (t.initialdate !== undefined && t.initialDate === undefined) {
+            normalized.initialDate = t.initialdate;
+            delete normalized.initialdate;
+            updated = true;
+        }
+
+        // Normalize currentReading / currentreading -> currentReading
+        if (t.currentreading !== undefined && t.currentReading === undefined) {
+            normalized.currentReading = t.currentreading;
+            delete normalized.currentreading;
+            updated = true;
+        }
+
+        // Normalize currentDate / currentdate -> currentDate
+        if (t.currentdate !== undefined && t.currentDate === undefined) {
+            normalized.currentDate = t.currentdate;
+            delete normalized.currentdate;
+            updated = true;
+        }
+
+        return normalized;
+    });
+
+    // Normalize case-insensitive property keys for readings
+    readings = readings.map(r => {
+        const normalized = { ...r };
+
+        // Normalize id / ID / Id -> id
+        if (r.ID !== undefined && r.id === undefined) {
+            normalized.id = r.ID;
+            delete normalized.ID;
+            updated = true;
+        }
+        if (r.Id !== undefined && r.id === undefined) {
+            normalized.id = r.Id;
+            delete normalized.Id;
+            updated = true;
+        }
+
+        // Normalize tenantId / tenantID / tenantid -> tenantId
+        if (r.tenantid !== undefined && r.tenantId === undefined) {
+            normalized.tenantId = r.tenantid;
+            delete normalized.tenantid;
+            updated = true;
+        }
+        if (r.tenantID !== undefined && r.tenantId === undefined) {
+            normalized.tenantId = r.tenantID;
+            delete normalized.tenantID;
+            updated = true;
+        }
+
+        // Normalize unitType / unittype -> unitType
+        if (r.unittype !== undefined && r.unitType === undefined) {
+            normalized.unitType = r.unittype;
+            delete normalized.unittype;
+            updated = true;
+        }
+
+        // Normalize prevReading / prevreading -> prevReading
+        if (r.prevreading !== undefined && r.prevReading === undefined) {
+            normalized.prevReading = r.prevreading;
+            delete normalized.prevreading;
+            updated = true;
+        }
+
+        // Normalize currReading / currreading -> currReading
+        if (r.currreading !== undefined && r.currReading === undefined) {
+            normalized.currReading = r.currreading;
+            delete normalized.currreading;
+            updated = true;
+        }
+
+        return normalized;
+    });
+
+    // Migrate building addresses to building IDs with robust matching
     tenants.forEach(t => {
         if (t.building && !t.buildingId) {
-            // Find existing building with same formatted address
-            let b = customBuildings.find(item => formatBuildingAddress(item) === t.building);
+            // Find existing building with same formatted address or address1 line case-insensitively
+            let b = customBuildings.find(item => {
+                const formatted = formatBuildingAddress(item);
+                return formatted === t.building || 
+                       item.address1 === t.building || 
+                       formatted.toLowerCase() === t.building.toLowerCase() ||
+                       item.address1.toLowerCase() === t.building.toLowerCase();
+            });
             if (!b) {
                 b = {
                     id: 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
@@ -357,11 +505,10 @@ function setupEventListeners() {
 
     tenantNameInput.addEventListener('change', () => {
         const selectedName = tenantNameInput.value;
+        const currentBuildingId = tenantBuildingInput.value;
         if (selectedName) {
-            const existingTenant = tenants.find(t => t.name === selectedName);
+            const existingTenant = tenants.find(t => t.name === selectedName && t.buildingId === currentBuildingId);
             if (existingTenant) {
-                tenantBuildingInput.value = existingTenant.buildingId || '';
-                populateTenantFormDropdowns();
                 tenantAddressInput.value = existingTenant.address || '';
                 tenantSubmeterInput.value = existingTenant.submeter || '';
                 tenantUnitSelect.value = existingTenant.unitType || 'cf';
@@ -1116,7 +1263,7 @@ function renderReadings() {
         const tenant = tenants.find(t => t.id === r.tenantId);
         
         // Filter by building
-        if (selectedBuilding && (!tenant || tenant.building !== selectedBuilding)) {
+        if (selectedBuilding && (!tenant || tenant.buildingId !== selectedBuilding)) {
             return false;
         }
         
@@ -1862,12 +2009,29 @@ function populateTenantFormDropdowns() {
         }
     });
 
-    // Custom items added via plus button are always visible so they can be assigned
-    customTenantNames.forEach(n => { if (n) namesSet.add(n); });
-    customAddresses.forEach(a => {
-        if (a) {
-            addressesSet.add(typeof a === 'string' ? a : formatUnitAddress(a));
+    // Custom items added via plus button are filtered if a building is selected
+    customTenantNames.forEach(n => {
+        if (!n) return;
+        if (selectedBuildingId) {
+            const assignedToThisBuilding = tenants.some(t => t.name === n && t.buildingId === selectedBuildingId);
+            const assignedToOtherBuildings = tenants.some(t => t.name === n && t.buildingId !== selectedBuildingId);
+            if (assignedToOtherBuildings && !assignedToThisBuilding) {
+                return;
+            }
         }
+        namesSet.add(n);
+    });
+    customAddresses.forEach(a => {
+        if (!a) return;
+        const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
+        if (selectedBuildingId) {
+            const assignedToThisBuilding = tenants.some(t => t.address === addrStr && t.buildingId === selectedBuildingId);
+            const assignedToOtherBuildings = tenants.some(t => t.address === addrStr && t.buildingId !== selectedBuildingId);
+            if (assignedToOtherBuildings && !assignedToThisBuilding) {
+                return;
+            }
+        }
+        addressesSet.add(addrStr);
     });
 
     const sortedNames = Array.from(namesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
@@ -2371,6 +2535,7 @@ function handleModalSubmit(e) {
 
 // --- RENDERING MANAGER ---
 function renderAll() {
+    migrateBuildingsData();
     populateTenantFormDropdowns();
     renderTenants();
     populateReadingBuildingDropdown();
@@ -2529,9 +2694,12 @@ async function syncWithCloud(isManual = false) {
 
             const mergedTenants = [];
             remoteTenants.forEach(t => {
-                if (localUnsyncedMap.has(t.id)) {
-                    mergedTenants.push(localUnsyncedMap.get(t.id));
-                    localUnsyncedMap.delete(t.id);
+                const remoteId = t.id || t.ID || t.Id;
+                if (remoteId && localUnsyncedMap.has(remoteId)) {
+                    const localObj = localUnsyncedMap.get(remoteId);
+                    localObj.synced = true;
+                    mergedTenants.push(localObj);
+                    localUnsyncedMap.delete(remoteId);
                 } else {
                     mergedTenants.push(t);
                 }
@@ -2551,9 +2719,12 @@ async function syncWithCloud(isManual = false) {
 
             const mergedReadings = [];
             remoteReadings.forEach(r => {
-                if (localUnsyncedMap.has(r.id)) {
-                    mergedReadings.push(localUnsyncedMap.get(r.id));
-                    localUnsyncedMap.delete(r.id);
+                const remoteId = r.id || r.ID || r.Id;
+                if (remoteId && localUnsyncedMap.has(remoteId)) {
+                    const localObj = localUnsyncedMap.get(remoteId);
+                    localObj.synced = true;
+                    mergedReadings.push(localObj);
+                    localUnsyncedMap.delete(remoteId);
                 } else {
                     mergedReadings.push(r);
                 }
