@@ -1546,7 +1546,7 @@ function handleExportBackup() {
         const dataStr = JSON.stringify({ tenants, readings }, null, 2);
         const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
         
-        const exportFileDefaultName = `aquameter_backup_${new Date().toISOString().split('T')[0]}.json`;
+        const exportFileDefaultName = `WaterMeterProBackup_${new Date().toISOString().split('T')[0]}.json`;
         
         const linkElement = document.createElement('a');
         linkElement.setAttribute('href', dataUri);
