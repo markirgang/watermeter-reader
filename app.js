@@ -8,7 +8,7 @@ let customAddresses = [];
 let modalMode = ''; // 'building', 'tenantName', 'address', 'syncSettings'
 
 // Cloud Sync Settings
-let syncUrl = localStorage.getItem('aquameter_sync_url') || 'https://script.google.com/macros/s/AKfycbx7JtsCp0ZPZqLG6qAuJRvwJRElQWuIW7PZ7buzHaeJNjRr7t5lMhHLv_1J2Ze3jl9XgA/exec';
+let syncUrl = localStorage.getItem('aquameter_sync_url') || 'https://script.google.com/macros/s/AKfycbz_opCeoA-eC1otn6iU_VTZZLvNneEEx6ch64Fz4D4-gVpOFbpC6_ufckMDssWwqzja/exec';
 let syncToken = localStorage.getItem('aquameter_sync_token') || 'Herc@5100';
 let autoSyncEnabled = localStorage.getItem('aquameter_auto_sync') === 'true';
 let isSyncingInProgress = false;
