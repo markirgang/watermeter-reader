@@ -17,7 +17,7 @@
  */
 
 // CHANGE THIS TOKEN to a unique, secret password.
-const SECRET_TOKEN = "SetYourSecretTokenHere";
+const SECRET_TOKEN = "Herc@5100";
 
 function doPost(e) {
   try {
