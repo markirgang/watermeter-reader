@@ -678,7 +678,7 @@ function handleTenantSubmit(e) {
 
     const id = tenantIdInput.value;
     const buildingId = tenantBuildingInput.value.trim();
-    const buildingObj = customBuildings.find(b => b.id === buildingId);
+    const buildingObj = findBuildingById(buildingId);
     const building = buildingObj ? formatBuildingAddress(buildingObj) : '';
     const name = tenantNameInput.value.trim();
     const company = tenantCompanyInput.value.trim();
@@ -774,7 +774,7 @@ function handleTenantSubmit(e) {
 }
 
 function editTenant(id) {
-    const tenant = tenants.find(t => t.id === id);
+    const tenant = findTenantById(id);
     if (!tenant) return;
 
     editingTenantId = tenant.id;
@@ -804,7 +804,7 @@ function editTenant(id) {
 }
 
 function deleteTenant(id) {
-    const tenant = tenants.find(t => t.id === id);
+    const tenant = findTenantById(id);
     if (!tenant) return;
 
     if (confirm(`Are you sure you want to delete "${tenant.name}"? This will also delete their entire reading history.`)) {
@@ -971,7 +971,7 @@ function populateReadingBuildingDropdown() {
     const buildingsMap = new Map();
     tenants.forEach(t => {
         if (t.buildingId) {
-            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            let bObj = findBuildingById(t.buildingId);
             if (!bObj) {
                 bObj = {
                     id: t.buildingId,
@@ -979,7 +979,8 @@ function populateReadingBuildingDropdown() {
                     address2: '', city: '', state: '', zipCode: ''
                 };
             }
-            buildingsMap.set(t.buildingId, bObj);
+            const normId = bObj.id.toString().trim().toLowerCase();
+            buildingsMap.set(normId, bObj);
         }
     });
     
@@ -996,9 +997,12 @@ function populateReadingBuildingDropdown() {
         readingBuildingSelect.appendChild(option);
     });
     
-    if (currentBuilding && buildingsMap.has(currentBuilding)) {
-        readingBuildingSelect.value = currentBuilding;
-        populateTenantDropdown(currentBuilding);
+    const currentBuildingNorm = currentBuilding ? currentBuilding.toString().trim().toLowerCase() : '';
+    if (currentBuilding && Array.from(buildingsMap.keys()).includes(currentBuildingNorm)) {
+        // Find the actual building object to get its correct casing for value
+        const matchedBuilding = Array.from(buildingsMap.values()).find(b => b.id.toString().trim().toLowerCase() === currentBuildingNorm);
+        readingBuildingSelect.value = matchedBuilding.id;
+        populateTenantDropdown(matchedBuilding.id);
     } else {
         readingTenantSelect.innerHTML = '<option value="" disabled selected>Choose a tenant...</option>';
         readingTenantSelect.disabled = true;
@@ -1018,7 +1022,8 @@ function populateTenantDropdown(selectedBuildingId) {
     
     readingTenantSelect.disabled = false;
     
-    const filteredTenants = tenants.filter(t => t.buildingId === selectedBuildingId);
+    const normBuildingId = selectedBuildingId.toString().trim().toLowerCase();
+    const filteredTenants = tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === normBuildingId);
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
     
     sortedTenants.forEach(tenant => {
@@ -1028,8 +1033,10 @@ function populateTenantDropdown(selectedBuildingId) {
         readingTenantSelect.appendChild(option);
     });
 
-    if (currentSelection && filteredTenants.some(t => t.id === currentSelection)) {
-        readingTenantSelect.value = currentSelection;
+    const currentSelectionNorm = currentSelection ? currentSelection.toString().trim().toLowerCase() : '';
+    if (currentSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentSelectionNorm)) {
+        const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentSelectionNorm);
+        readingTenantSelect.value = matchedTenant.id;
         handleReadingTenantChange();
     } else {
         resetReadingFormFields(false);
@@ -1038,7 +1045,7 @@ function populateTenantDropdown(selectedBuildingId) {
 
 function handleReadingTenantChange() {
     const tenantId = readingTenantSelect.value;
-    const tenant = tenants.find(t => t.id === tenantId);
+    const tenant = findTenantById(tenantId);
 
     if (!tenant) {
         resetReadingFormFields(false);
@@ -1125,7 +1132,7 @@ function handleReadingSubmit(e) {
     e.preventDefault();
 
     const tenantId = readingTenantSelect.value;
-    const tenant = tenants.find(t => t.id === tenantId);
+    const tenant = findTenantById(tenantId);
     if (!tenant) return;
 
     const prevReading = parseFloat(readingPrevInput.value);
@@ -1217,7 +1224,7 @@ function deleteReading(readingId) {
     if (!reading) return;
 
     if (confirm('Are you sure you want to delete this meter reading?')) {
-        const tenant = tenants.find(t => t.id === reading.tenantId);
+        const tenant = findTenantById(reading.tenantId);
         
         // Register deletion for sync
         registerDeletion(readingId);
@@ -1227,8 +1234,9 @@ function deleteReading(readingId) {
         
         // If the deleted reading was the latest reading for this tenant, we need to roll back the tenant's current status
         if (tenant) {
+            const normTenantId = tenant.id ? tenant.id.toString().trim().toLowerCase() : '';
             const tenantReadings = readings
-                .filter(r => r.tenantId === tenant.id)
+                .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId)
                 .sort((a, b) => new Date(b.date) - new Date(a.date)); // descending date order
 
             if (tenantReadings.length > 0) {
@@ -1260,16 +1268,21 @@ function renderReadings() {
     const sortedReadings = [...readings].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const filteredReadings = sortedReadings.filter(r => {
-        const tenant = tenants.find(t => t.id === r.tenantId);
+        const tenant = findTenantById(r.tenantId);
         
         // Filter by building
-        if (selectedBuilding && (!tenant || tenant.buildingId !== selectedBuilding)) {
-            return false;
+        if (selectedBuilding) {
+            if (!tenant || !tenant.buildingId) return false;
+            if (tenant.buildingId.toString().trim().toLowerCase() !== selectedBuilding.toString().trim().toLowerCase()) {
+                return false;
+            }
         }
         
         // Filter by tenant
-        if (selectedTenantId && r.tenantId !== selectedTenantId) {
-            return false;
+        if (selectedTenantId) {
+            if (!r.tenantId || r.tenantId.toString().trim().toLowerCase() !== selectedTenantId.toString().trim().toLowerCase()) {
+                return false;
+            }
         }
         
         const name = tenant ? tenant.name.toLowerCase() : '';
@@ -1297,13 +1310,14 @@ function renderReadings() {
     }
 
     filteredReadings.forEach(reading => {
-        const tenant = tenants.find(t => t.id === reading.tenantId);
+        const tenant = findTenantById(reading.tenantId);
         const tenantName = tenant ? tenant.name : 'Unknown Tenant';
         const submeter = tenant ? tenant.submeter : 'N/A';
 
         // Find prior date dynamically
+        const normTenantId = reading.tenantId ? reading.tenantId.toString().trim().toLowerCase() : '';
         const allTenantReadingsChronological = readings
-            .filter(r => r.tenantId === reading.tenantId)
+            .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId)
             .sort((a, b) => new Date(a.date) - new Date(b.date));
         const currentIdx = allTenantReadingsChronological.findIndex(r => r.id === reading.id);
         const priorDateVal = currentIdx > 0 ? allTenantReadingsChronological[currentIdx - 1].date : (tenant ? tenant.initialDate : '');
@@ -1350,11 +1364,12 @@ function populateReadingFilters() {
     const buildingsMap = new Map();
     tenants.forEach(t => {
         if (t.buildingId) {
-            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            let bObj = findBuildingById(t.buildingId);
             if (!bObj) {
                 bObj = { id: t.buildingId, address1: t.building || 'Unknown Building', address2: '', city: '', state: '', zipCode: '' };
             }
-            buildingsMap.set(t.buildingId, bObj);
+            const normId = bObj.id.toString().trim().toLowerCase();
+            buildingsMap.set(normId, bObj);
         }
     });
     const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
@@ -1373,8 +1388,10 @@ function populateReadingFilters() {
     });
 
     // Restore selection if valid
-    if (currentBuildingSelection && buildingsMap.has(currentBuildingSelection)) {
-        readingBuildingFilter.value = currentBuildingSelection;
+    const currentBuildingSelectionNorm = currentBuildingSelection ? currentBuildingSelection.toString().trim().toLowerCase() : '';
+    if (currentBuildingSelection && Array.from(buildingsMap.keys()).includes(currentBuildingSelectionNorm)) {
+        const matchedBuilding = Array.from(buildingsMap.values()).find(b => b.id.toString().trim().toLowerCase() === currentBuildingSelectionNorm);
+        readingBuildingFilter.value = matchedBuilding.id;
     }
 
     // Populate Tenant Dropdown based on selected building
@@ -1382,11 +1399,14 @@ function populateReadingFilters() {
 
     // Restore tenant selection if valid for this building
     const selectedBuildingId = readingBuildingFilter.value;
+    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
     const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId === selectedBuildingId)
+        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
         : tenants;
-    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
-        readingTenantFilter.value = currentTenantSelection;
+    const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
+    if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
+        const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
+        readingTenantFilter.value = matchedTenant.id;
     }
 }
 
@@ -1398,8 +1418,9 @@ function updateReadingTenantFilter() {
     const currentTenantSelection = readingTenantFilter.value;
     const selectedBuildingId = readingBuildingFilter.value;
 
+    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
     const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId === selectedBuildingId)
+        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
         : tenants;
 
     // Sort tenants by name
@@ -1413,8 +1434,10 @@ function updateReadingTenantFilter() {
         readingTenantFilter.appendChild(option);
     });
 
-    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
-        readingTenantFilter.value = currentTenantSelection;
+    const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
+    if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
+        const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
+        readingTenantFilter.value = matchedTenant.id;
     }
 }
 
@@ -1429,11 +1452,12 @@ function populateTakeoffFilters() {
     const buildingsMap = new Map();
     tenants.forEach(t => {
         if (t.buildingId) {
-            let bObj = customBuildings.find(b => b.id === t.buildingId);
+            let bObj = findBuildingById(t.buildingId);
             if (!bObj) {
                 bObj = { id: t.buildingId, address1: t.building || 'Unknown Building', address2: '', city: '', state: '', zipCode: '' };
             }
-            buildingsMap.set(t.buildingId, bObj);
+            const normId = bObj.id.toString().trim().toLowerCase();
+            buildingsMap.set(normId, bObj);
         }
     });
     const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
@@ -1452,8 +1476,10 @@ function populateTakeoffFilters() {
     });
 
     // Restore selection if valid
-    if (currentBuildingSelection && buildingsMap.has(currentBuildingSelection)) {
-        takeoffBuildingFilter.value = currentBuildingSelection;
+    const currentBuildingSelectionNorm = currentBuildingSelection ? currentBuildingSelection.toString().trim().toLowerCase() : '';
+    if (currentBuildingSelection && Array.from(buildingsMap.keys()).includes(currentBuildingSelectionNorm)) {
+        const matchedBuilding = Array.from(buildingsMap.values()).find(b => b.id.toString().trim().toLowerCase() === currentBuildingSelectionNorm);
+        takeoffBuildingFilter.value = matchedBuilding.id;
     }
 
     // Populate Tenant Dropdown based on selected building
@@ -1461,11 +1487,14 @@ function populateTakeoffFilters() {
 
     // Restore tenant selection if valid for this building
     const selectedBuildingId = takeoffBuildingFilter.value;
+    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
     const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId === selectedBuildingId)
+        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
         : tenants;
-    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
-        takeoffTenantFilter.value = currentTenantSelection;
+    const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
+    if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
+        const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
+        takeoffTenantFilter.value = matchedTenant.id;
     }
 }
 
@@ -1475,8 +1504,9 @@ function updateTakeoffTenantFilter() {
     const currentTenantSelection = takeoffTenantFilter.value;
     const selectedBuildingId = takeoffBuildingFilter.value;
 
+    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
     const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId === selectedBuildingId)
+        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
         : tenants;
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1489,8 +1519,10 @@ function updateTakeoffTenantFilter() {
     });
 
     // Restore tenant selection if valid for this building
-    if (currentTenantSelection && filteredTenants.some(t => t.id === currentTenantSelection)) {
-        takeoffTenantFilter.value = currentTenantSelection;
+    const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
+    if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
+        const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
+        takeoffTenantFilter.value = matchedTenant.id;
     } else {
         takeoffTenantFilter.value = "";
     }
@@ -1665,13 +1697,14 @@ function exportToExcel() {
             return matchesBuilding && matchesTenant;
         });
 
-        const filteredTenantIds = new Set(filteredTenants.map(t => t.id));
+        const filteredTenantIds = new Set(filteredTenants.map(t => t.id ? t.id.toString().trim().toLowerCase() : ''));
 
         // --- 1. BILLING TAKEOFF SHEET DATA ---
         const takeoffData = [];
         filteredTenants.forEach(tenant => {
+            const normTenantId = tenant.id ? tenant.id.toString().trim().toLowerCase() : '';
             const tenantPeriodReadings = readings
-                .filter(r => r.tenantId === tenant.id && new Date(r.date) >= startDate && new Date(r.date) <= endDate)
+                .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId && new Date(r.date) >= startDate && new Date(r.date) <= endDate)
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
 
             let startRead = tenant.initialReading;
@@ -1690,7 +1723,7 @@ function exportToExcel() {
                 });
             } else {
                 const historicReadings = readings
-                    .filter(r => r.tenantId === tenant.id && new Date(r.date) < startDate)
+                    .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId && new Date(r.date) < startDate)
                     .sort((a, b) => new Date(b.date) - new Date(a.date));
                 const lastValue = historicReadings.length > 0 ? historicReadings[0].currReading : tenant.initialReading;
                 startRead = lastValue;
@@ -1729,10 +1762,10 @@ function exportToExcel() {
 
         // --- 3. READING HISTORY SHEET DATA ---
         const historyData = readings
-            .filter(r => filteredTenantIds.has(r.tenantId))
+            .filter(r => r.tenantId && filteredTenantIds.has(r.tenantId.toString().trim().toLowerCase()))
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .map(r => {
-                const tenant = tenants.find(t => t.id === r.tenantId);
+                const tenant = findTenantById(r.tenantId);
                 return {
                     'Reading Date': r.date,
                     'Store Name': tenant ? tenant.name : 'Unknown',
@@ -1888,10 +1921,11 @@ function deleteBuilding() {
         showToast('Please select a building to delete.', 'error');
         return;
     }
-    const building = customBuildings.find(b => b.id === buildingId);
+    const building = findBuildingById(buildingId);
     if (!building) return;
 
-    const hasTenants = tenants.some(t => t.buildingId === buildingId);
+    const normBuildingId = buildingId ? buildingId.toString().trim().toLowerCase() : '';
+    const hasTenants = tenants.some(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === normBuildingId);
     let confirmMsg = `Are you sure you want to delete the building "${formatBuildingAddress(building)}"?`;
     if (hasTenants) {
         confirmMsg += `\n\nWARNING: Deleting this building will also delete all associated active tenants and their reading history!`;
@@ -1900,22 +1934,23 @@ function deleteBuilding() {
     if (confirm(confirmMsg)) {
         if (hasTenants) {
             // Find all tenants in this building
-            const tenantsToDelete = tenants.filter(t => t.buildingId === buildingId);
+            const tenantsToDelete = tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === normBuildingId);
             tenantsToDelete.forEach(t => {
+                const normTenantId = t.id ? t.id.toString().trim().toLowerCase() : '';
                 // Register deletions for sync
-                const tenantReadingIds = readings.filter(r => r.tenantId === t.id).map(r => r.id);
+                const tenantReadingIds = readings.filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId).map(r => r.id);
                 registerDeletion(t.id);
                 tenantReadingIds.forEach(rid => registerDeletion(rid));
                 
                 // Remove readings
-                readings = readings.filter(r => r.tenantId !== t.id);
+                readings = readings.filter(r => !r.tenantId || r.tenantId.toString().trim().toLowerCase() !== normTenantId);
             });
             // Remove tenants
-            tenants = tenants.filter(t => t.buildingId !== buildingId);
+            tenants = tenants.filter(t => !t.buildingId || t.buildingId.toString().trim().toLowerCase() !== normBuildingId);
         }
 
         // Delete from customBuildings
-        customBuildings = customBuildings.filter(b => b.id !== buildingId);
+        customBuildings = customBuildings.filter(b => !b.id || b.id.toString().trim().toLowerCase() !== normBuildingId);
 
         saveData();
         tenantBuildingInput.value = '';
@@ -2064,8 +2099,10 @@ function populateTenantFormDropdowns() {
             selectEl.appendChild(option);
         });
         
-        if (currentValue && buildingsList.some(b => b.id === currentValue)) {
-            selectEl.value = currentValue;
+        const currentValueNorm = currentValue ? currentValue.toString().trim().toLowerCase() : '';
+        if (currentValue && buildingsList.some(b => b.id && b.id.toString().trim().toLowerCase() === currentValueNorm)) {
+            const matchedBuilding = buildingsList.find(b => b.id.toString().trim().toLowerCase() === currentValueNorm);
+            selectEl.value = matchedBuilding.id;
         }
     };
 
@@ -2119,7 +2156,7 @@ function openModal(mode) {
         setTimeout(() => document.getElementById('buildingAddress1').focus(), 100);
     } else if (mode === 'editBuilding') {
         const selectedVal = tenantBuildingInput.value; // buildingId
-        const b = customBuildings.find(item => item.id === selectedVal) || { address1: selectedVal };
+        const b = findBuildingById(selectedVal) || { address1: selectedVal };
         
         title = 'Edit Building / Property';
         icon = 'building';
@@ -2226,7 +2263,7 @@ function openEditReadingModal(readingId) {
     const reading = readings.find(r => r.id === readingId);
     if (!reading) return;
 
-    const tenant = tenants.find(t => t.id === reading.tenantId);
+    const tenant = findTenantById(reading.tenantId);
     const tenantName = tenant ? tenant.name : 'Unknown Tenant';
 
     document.getElementById('editReadingId').value = reading.id;
@@ -2272,12 +2309,13 @@ function handleEditReadingSubmit(e) {
     const newDate = document.getElementById('editReadingDate').value;
     const newComments = document.getElementById('editReadingComments').value.trim();
 
-    const tenant = tenants.find(t => t.id === tenantId);
+    const tenant = findTenantById(tenantId);
     if (!tenant) return;
 
     // Validation
+    const normTenantId = tenantId ? tenantId.toString().trim().toLowerCase() : '';
     const tenantReadings = readings
-        .filter(r => r.tenantId === tenantId)
+        .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
         
     const currentIndex = tenantReadings.findIndex(r => r.id === readingId);
@@ -2349,12 +2387,13 @@ function handleEditReadingSubmit(e) {
 }
 
 function recalculateTenantHistory(tenantId) {
-    const tenant = tenants.find(t => t.id === tenantId);
+    const tenant = findTenantById(tenantId);
     if (!tenant) return;
 
+    const normTenantId = tenantId ? tenantId.toString().trim().toLowerCase() : '';
     // Get all readings for this tenant, sorted chronologically
     const tenantReadings = readings
-        .filter(r => r.tenantId === tenantId)
+        .filter(r => r.tenantId && r.tenantId.toString().trim().toLowerCase() === normTenantId)
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     let prevReading = tenant.initialReading;
@@ -2393,7 +2432,7 @@ function handleModalSubmit(e) {
         let buildingObj;
         
         if (modalMode === 'editBuilding') {
-            const existing = customBuildings.find(b => b.id === buildingId);
+            const existing = findBuildingById(buildingId);
             if (existing) {
                 oldFormattedAddress = formatBuildingAddress(existing);
                 buildingObj = existing;
@@ -2796,4 +2835,17 @@ function escapeHTML(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+// --- ID LOOKUP HELPERS ---
+function findTenantById(tenantId) {
+    if (!tenantId) return null;
+    const norm = tenantId.toString().trim().toLowerCase();
+    return tenants.find(t => t.id && t.id.toString().trim().toLowerCase() === norm) || null;
+}
+
+function findBuildingById(buildingId) {
+    if (!buildingId) return null;
+    const norm = buildingId.toString().trim().toLowerCase();
+    return customBuildings.find(b => b.id && b.id.toString().trim().toLowerCase() === norm) || null;
 }
