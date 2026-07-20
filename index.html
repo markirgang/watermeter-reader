@@ -418,6 +418,50 @@
                                 <input type="text" id="modalTenantNameValue" autocomplete="off">
                             </div>
                         </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantCompany">Company</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="briefcase" class="input-icon"></i>
+                                <input type="text" id="modalTenantCompany" placeholder="e.g. Acme Corporation" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantAddress">Unit Address *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <select id="modalTenantAddress">
+                                    <option value="" disabled selected>Select Address...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantSubmeter">Submeter ID</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="hash" class="input-icon"></i>
+                                <input type="text" id="modalTenantSubmeter" placeholder="Auto (1st 4 of address)" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantUnit">Unit Type *</label>
+                            <select id="modalTenantUnit">
+                                <option value="cf">Cubic Feet (cf)</option>
+                                <option value="gal">Gallons (gal)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantRate">Billing Rate ($/unit) *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="dollar-sign" class="input-icon"></i>
+                                <input type="number" id="modalTenantRate" step="0.0001" min="0" placeholder="0.05">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantInitialReading">Initial Reading *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="gauge" class="input-icon"></i>
+                                <input type="number" id="modalTenantInitialReading" step="0.01" min="0" value="0">
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Building/Property Mode Fields -->

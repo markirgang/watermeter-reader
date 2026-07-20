@@ -379,6 +379,38 @@ function migrateBuildingsData() {
         }
     });
 
+    // Migrate customTenantNames strings to objects
+    if (customTenantNames && customTenantNames.length > 0) {
+        customTenantNames = customTenantNames.map(n => {
+            if (typeof n === 'string') {
+                updated = true;
+                const matchingTenant = tenants.find(t => t.name === n);
+                if (matchingTenant) {
+                    return {
+                        name: n,
+                        company: matchingTenant.company || '',
+                        address: matchingTenant.address || '',
+                        submeter: matchingTenant.submeter || '',
+                        unitType: matchingTenant.unitType || 'cf',
+                        rate: matchingTenant.rate !== undefined ? matchingTenant.rate : 0.05,
+                        initialReading: matchingTenant.initialReading !== undefined ? matchingTenant.initialReading : 0
+                    };
+                } else {
+                    return {
+                        name: n,
+                        company: '',
+                        address: '',
+                        submeter: '',
+                        unitType: 'cf',
+                        rate: 0.05,
+                        initialReading: 0
+                    };
+                }
+            }
+            return n;
+        });
+    }
+
     if (updated) {
         saveData();
     }
@@ -510,6 +542,7 @@ function setupEventListeners() {
         if (selectedName) {
             const existingTenant = tenants.find(t => t.name === selectedName && t.buildingId === currentBuildingId);
             if (existingTenant) {
+                tenantCompanyInput.value = existingTenant.company || '';
                 tenantAddressInput.value = existingTenant.address || '';
                 tenantSubmeterInput.value = existingTenant.submeter || '';
                 tenantUnitSelect.value = existingTenant.unitType || 'cf';
@@ -524,6 +557,18 @@ function setupEventListeners() {
                 
                 renderTenants();
                 showToast(`Auto-populated details for "${selectedName}".`, 'info');
+            } else {
+                // If not found in this building, check customTenantNames for the template
+                const tenantObj = customTenantNames.find(t => (typeof t === 'string' ? t : t.name) === selectedName);
+                if (tenantObj && typeof tenantObj === 'object') {
+                    tenantCompanyInput.value = tenantObj.company || '';
+                    tenantAddressInput.value = tenantObj.address || '';
+                    tenantSubmeterInput.value = tenantObj.submeter || generateSubmeterId(tenantObj.address) || '';
+                    tenantUnitSelect.value = tenantObj.unitType || 'cf';
+                    tenantRateInput.value = tenantObj.rate !== undefined ? tenantObj.rate : '';
+                    tenantInitialReadingInput.value = tenantObj.initialReading !== undefined ? tenantObj.initialReading : 0;
+                    showToast(`Auto-populated profile details for "${selectedName}".`, 'info');
+                }
             }
         }
         updateEditButtonsState();
@@ -763,6 +808,23 @@ function handleTenantSubmit(e) {
         };
         tenants.push(newTenant);
         showToast('New tenant added successfully.', 'success');
+    }
+
+    // Update/add in customTenantNames to keep profile metadata linked
+    const tData = {
+        name: name,
+        company: company,
+        address: address,
+        submeter: submeter,
+        unitType: unitType,
+        rate: rate,
+        initialReading: initialReading
+    };
+    const nameIdx = customTenantNames.findIndex(t => (typeof t === 'string' ? t : t.name) === name);
+    if (nameIdx !== -1) {
+        customTenantNames[nameIdx] = tData;
+    } else {
+        customTenantNames.push(tData);
     }
 
     saveData();
@@ -1839,7 +1901,13 @@ function handleExportBackup() {
     }
 
     try {
-        const dataStr = JSON.stringify({ tenants, readings }, null, 2);
+        const dataStr = JSON.stringify({
+            tenants,
+            readings,
+            customBuildings: customBuildings || [],
+            customTenantNames: customTenantNames || [],
+            customAddresses: customAddresses || []
+        }, null, 2);
         const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
         
         const exportFileDefaultName = `WaterMeterProBackup_${new Date().toISOString().split('T')[0]}.json`;
@@ -1868,7 +1936,13 @@ function handleImportBackup(e) {
             if (Array.isArray(importedData.tenants) && Array.isArray(importedData.readings)) {
                 tenants = importedData.tenants;
                 readings = importedData.readings;
+                if (Array.isArray(importedData.customBuildings)) customBuildings = importedData.customBuildings;
+                if (Array.isArray(importedData.customTenantNames)) customTenantNames = importedData.customTenantNames;
+                if (Array.isArray(importedData.customAddresses)) customAddresses = importedData.customAddresses;
                 
+                // Run migration to normalize / upgrade structures
+                migrateBuildingsData();
+
                 saveData();
                 renderAll();
                 showToast('Database restored successfully from backup!', 'success');
@@ -2000,7 +2074,7 @@ function deleteTenantName() {
         }
 
         // Delete from customTenantNames
-        customTenantNames = customTenantNames.filter(n => n !== selectedName);
+        customTenantNames = customTenantNames.filter(n => (typeof n === 'string' ? n : n.name) !== selectedName);
 
         saveData();
         tenantNameInput.value = '';
@@ -2183,19 +2257,101 @@ function openModal(mode) {
         document.getElementById('tenantNameModalFields').style.display = 'block';
         setRequiredForGroup('tenantNameModalFields', true);
         
+        // Company & Submeter are optional
+        document.getElementById('modalTenantCompany').required = false;
+        document.getElementById('modalTenantSubmeter').required = false;
+        
+        // Populate Address Dropdown in modal
+        const populateModalAddressDropdown = () => {
+            const addressesSet = new Set();
+            tenants.forEach(t => {
+                if (t.address) addressesSet.add(t.address);
+            });
+            customAddresses.forEach(a => {
+                if (!a) return;
+                const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
+                addressesSet.add(addrStr);
+            });
+            const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+            
+            const modalTenantAddressSelect = document.getElementById('modalTenantAddress');
+            if (modalTenantAddressSelect) {
+                modalTenantAddressSelect.innerHTML = '<option value="" disabled selected>Select Address...</option>';
+                sortedAddresses.forEach(addr => {
+                    const option = document.createElement('option');
+                    option.value = addr;
+                    option.textContent = addr;
+                    modalTenantAddressSelect.appendChild(option);
+                });
+            }
+        };
+        populateModalAddressDropdown();
+
         // Clear values
         document.getElementById('modalTenantNameValue').value = '';
+        document.getElementById('modalTenantCompany').value = '';
+        document.getElementById('modalTenantAddress').value = '';
+        document.getElementById('modalTenantSubmeter').value = '';
+        document.getElementById('modalTenantUnit').value = 'cf';
+        document.getElementById('modalTenantRate').value = '';
+        document.getElementById('modalTenantInitialReading').value = '0';
         
         setTimeout(() => document.getElementById('modalTenantNameValue').focus(), 100);
     } else if (mode === 'editTenantName') {
         const selectedVal = tenantNameInput.value;
+        const tenantObj = customTenantNames.find(t => (typeof t === 'string' ? t : t.name) === selectedVal);
         
         title = 'Edit Store / Tenant Name';
         icon = 'store';
         document.getElementById('tenantNameModalFields').style.display = 'block';
         setRequiredForGroup('tenantNameModalFields', true);
         
+        // Company & Submeter are optional
+        document.getElementById('modalTenantCompany').required = false;
+        document.getElementById('modalTenantSubmeter').required = false;
+        
+        // Populate Address Dropdown in modal
+        const populateModalAddressDropdown = () => {
+            const addressesSet = new Set();
+            tenants.forEach(t => {
+                if (t.address) addressesSet.add(t.address);
+            });
+            customAddresses.forEach(a => {
+                if (!a) return;
+                const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
+                addressesSet.add(addrStr);
+            });
+            const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
+            
+            const modalTenantAddressSelect = document.getElementById('modalTenantAddress');
+            if (modalTenantAddressSelect) {
+                modalTenantAddressSelect.innerHTML = '<option value="" disabled selected>Select Address...</option>';
+                sortedAddresses.forEach(addr => {
+                    const option = document.createElement('option');
+                    option.value = addr;
+                    option.textContent = addr;
+                    modalTenantAddressSelect.appendChild(option);
+                });
+            }
+        };
+        populateModalAddressDropdown();
+
         document.getElementById('modalTenantNameValue').value = selectedVal || '';
+        if (tenantObj && typeof tenantObj === 'object') {
+            document.getElementById('modalTenantCompany').value = tenantObj.company || '';
+            document.getElementById('modalTenantAddress').value = tenantObj.address || '';
+            document.getElementById('modalTenantSubmeter').value = tenantObj.submeter || '';
+            document.getElementById('modalTenantUnit').value = tenantObj.unitType || 'cf';
+            document.getElementById('modalTenantRate').value = tenantObj.rate !== undefined ? tenantObj.rate : '';
+            document.getElementById('modalTenantInitialReading').value = tenantObj.initialReading !== undefined ? tenantObj.initialReading : '0';
+        } else {
+            document.getElementById('modalTenantCompany').value = '';
+            document.getElementById('modalTenantAddress').value = '';
+            document.getElementById('modalTenantSubmeter').value = '';
+            document.getElementById('modalTenantUnit').value = 'cf';
+            document.getElementById('modalTenantRate').value = '';
+            document.getElementById('modalTenantInitialReading').value = '0';
+        }
         
         setTimeout(() => document.getElementById('modalTenantNameValue').focus(), 100);
     } else if (mode === 'address') {
@@ -2244,6 +2400,12 @@ function closeModal() {
     
     // Clear all fields
     document.getElementById('modalTenantNameValue').value = '';
+    document.getElementById('modalTenantCompany').value = '';
+    document.getElementById('modalTenantAddress').value = '';
+    document.getElementById('modalTenantSubmeter').value = '';
+    document.getElementById('modalTenantUnit').value = 'cf';
+    document.getElementById('modalTenantRate').value = '';
+    document.getElementById('modalTenantInitialReading').value = '0';
     document.getElementById('buildingAddress1').value = '';
     document.getElementById('buildingAddress2').value = '';
     document.getElementById('buildingCity').value = '';
@@ -2488,36 +2650,69 @@ function handleModalSubmit(e) {
         const value = document.getElementById('modalTenantNameValue').value.trim();
         if (!value) return;
         
+        const companyVal = document.getElementById('modalTenantCompany').value.trim();
+        const addressVal = document.getElementById('modalTenantAddress').value;
+        const submeterVal = document.getElementById('modalTenantSubmeter').value.trim();
+        const unitTypeVal = document.getElementById('modalTenantUnit').value;
+        const rateVal = parseFloat(document.getElementById('modalTenantRate').value) || 0;
+        const initialReadingVal = parseFloat(document.getElementById('modalTenantInitialReading').value) || 0;
+
+        const tenantData = {
+            name: value,
+            company: companyVal,
+            address: addressVal,
+            submeter: submeterVal,
+            unitType: unitTypeVal,
+            rate: rateVal,
+            initialReading: initialReadingVal
+        };
+
         const selectedVal = tenantNameInput.value;
         const oldName = modalMode === 'editTenantName' ? selectedVal : '';
         
         if (modalMode === 'editTenantName') {
-            const idx = customTenantNames.indexOf(oldName);
+            const idx = customTenantNames.findIndex(t => (typeof t === 'string' ? t : t.name) === oldName);
             if (idx !== -1) {
-                customTenantNames[idx] = value;
-            } else if (!customTenantNames.includes(value)) {
-                customTenantNames.push(value);
+                customTenantNames[idx] = tenantData;
+            } else {
+                customTenantNames.push(tenantData);
             }
-            // Update tenants using old name
-            if (oldName && oldName !== value) {
-                tenants.forEach(t => {
-                    if (t.name === oldName) {
-                        t.name = value;
-                        t.synced = false;
-                    }
-                });
-            }
+            // Update tenants using old name or new name
+            tenants.forEach(t => {
+                if (t.name === oldName || t.name === value) {
+                    t.name = value;
+                    t.company = companyVal;
+                    t.address = addressVal;
+                    t.submeter = submeterVal || generateSubmeterId(addressVal);
+                    t.unitType = unitTypeVal;
+                    t.rate = rateVal;
+                    t.initialReading = initialReadingVal;
+                    t.synced = false;
+                }
+            });
         } else {
-            if (!customTenantNames.includes(value)) {
-                customTenantNames.push(value);
+            const idx = customTenantNames.findIndex(t => (typeof t === 'string' ? t : t.name) === value);
+            if (idx !== -1) {
+                customTenantNames[idx] = tenantData;
+            } else {
+                customTenantNames.push(tenantData);
             }
         }
         
         saveData();
         populateTenantFormDropdowns();
         tenantNameInput.value = value;
+        
+        // Auto-populate the main form immediately
+        tenantCompanyInput.value = companyVal;
+        tenantAddressInput.value = addressVal;
+        tenantSubmeterInput.value = submeterVal || generateSubmeterId(addressVal);
+        tenantUnitSelect.value = unitTypeVal;
+        tenantRateInput.value = rateVal;
+        tenantInitialReadingInput.value = initialReadingVal;
+        
         updateEditButtonsState();
-        showToast(modalMode === 'editTenantName' ? 'Tenant name updated successfully.' : `Tenant "${value}" added successfully.`, 'success');
+        showToast(modalMode === 'editTenantName' ? 'Tenant profile updated successfully.' : `Tenant "${value}" added successfully.`, 'success');
     } else if (modalMode === 'address' || modalMode === 'editAddress') {
         const address1 = document.getElementById('unitAddress1').value.trim();
         const premises = document.getElementById('unitPremises').value.trim();
