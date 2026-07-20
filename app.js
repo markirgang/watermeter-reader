@@ -686,7 +686,7 @@ function resetTenantForm(keepBuilding = false) {
         populateTenantFormDropdowns();
     }
     
-    tenantFormTitle.innerHTML = `<i data-lucide="user-plus"></i> Add New Tenant`;
+    tenantFormTitle.innerHTML = `<i data-lucide="user-plus"></i> Building and Tenant Select`;
     saveTenantBtn.innerHTML = `<i data-lucide="save"></i> Save Tenant`;
     cancelEditTenantBtn.style.display = 'none';
     
@@ -733,7 +733,7 @@ function renderTenants() {
     if (!selectedBuildingId) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="11">
+                <td colspan="12">
                     <div class="empty-state" style="text-align: center; padding: 2.5rem 1.5rem;">
                         <i data-lucide="building" style="width: 48px; height: 48px; margin: 0 auto 1rem auto; display: block; color: var(--primary); opacity: 0.6;"></i>
                         <p style="color: var(--text-muted); font-size: 0.95rem;">Select a building / property on the left to view active tenants.</p>
@@ -761,7 +761,7 @@ function renderTenants() {
     if (filteredTenants.length === 0) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="11">
+                <td colspan="12">
                     <div class="empty-state" style="text-align: center; padding: 2.5rem 1.5rem;">
                         <i data-lucide="users" style="width: 48px; height: 48px; margin: 0 auto 1rem auto; display: block; color: var(--text-muted); opacity: 0.5;"></i>
                         <p style="color: var(--text-muted); font-size: 0.95rem;">${tenants.length === 0 ? 'No tenants registered yet. Add one using the form on the left!' : 'No matching tenants found.'}</p>
@@ -790,15 +790,15 @@ function renderTenants() {
                 <div style="font-size: 0.75rem; color: var(--text-muted);">${formatDate(tenant.currentDate)}</div>
             </td>
             <td><strong style="color: ${usage > 0 ? 'var(--primary)' : 'var(--text-muted)'};">${usage.toFixed(2)}</strong></td>
-            <td>
-                <div class="action-btn-group" style="justify-content: center;">
-                    <button class="action-btn edit" onclick="editTenant('${tenant.id}')" title="Edit Tenant">
-                        <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
-                    </button>
-                    <button class="action-btn delete" onclick="deleteTenant('${tenant.id}')" title="Delete Tenant">
-                        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
-                    </button>
-                </div>
+            <td style="text-align: center;">
+                <button class="action-btn edit" onclick="editTenant('${tenant.id}')" title="Edit Tenant" style="margin: 0 auto;">
+                    <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
+            <td style="text-align: center;">
+                <button class="action-btn delete" onclick="deleteTenant('${tenant.id}')" title="Delete Tenant" style="margin: 0 auto;">
+                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                </button>
             </td>
         `;
         tenantTableBody.appendChild(row);
