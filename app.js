@@ -29,6 +29,7 @@ const tenantUnitSelect = document.getElementById('tenantUnit');
 const tenantRateInput = document.getElementById('tenantRate');
 const tenantInitialReadingInput = document.getElementById('tenantInitialReading');
 const tenantInitialDateInput = document.getElementById('tenantInitialDate');
+const tenantCompanyInput = document.getElementById('tenantCompany');
 const saveTenantBtn = document.getElementById('saveTenantBtn');
 const cancelEditTenantBtn = document.getElementById('cancelEditTenantBtn');
 const tenantTableBody = document.getElementById('tenantTableBody');
@@ -481,6 +482,7 @@ function handleTenantSubmit(e) {
     const id = tenantIdInput.value;
     const building = tenantBuildingInput.value.trim();
     const name = tenantNameInput.value.trim();
+    const company = tenantCompanyInput.value.trim();
     const address = tenantAddressInput.value.trim();
     let submeter = tenantSubmeterInput.value.trim();
     const unitType = tenantUnitSelect.value;
@@ -524,6 +526,7 @@ function handleTenantSubmit(e) {
                 ...oldTenant,
                 building,
                 name,
+                company,
                 address,
                 submeter,
                 unitType,
@@ -545,6 +548,7 @@ function handleTenantSubmit(e) {
             id: 'tenant_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
             building,
             name,
+            company,
             address,
             submeter,
             unitType,
@@ -576,6 +580,7 @@ function editTenant(id) {
     tenantIdInput.value = tenant.id;
     tenantBuildingInput.value = tenant.building || '';
     tenantNameInput.value = tenant.name;
+    tenantCompanyInput.value = tenant.company || '';
     tenantAddressInput.value = tenant.address;
     tenantSubmeterInput.value = tenant.submeter;
     tenantUnitSelect.value = tenant.unitType;
@@ -683,7 +688,7 @@ function renderTenants() {
     if (!selectedBuilding) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="10">
+                <td colspan="11">
                     <div class="empty-state" style="text-align: center; padding: 2.5rem 1.5rem;">
                         <i data-lucide="building" style="width: 48px; height: 48px; margin: 0 auto 1rem auto; display: block; color: var(--primary); opacity: 0.6;"></i>
                         <p style="color: var(--text-muted); font-size: 0.95rem;">Select a building / property on the left to view active tenants.</p>
@@ -701,6 +706,7 @@ function renderTenants() {
         
         // Search filter matching
         return t.name.toLowerCase().includes(filter) || 
+               (t.company && t.company.toLowerCase().includes(filter)) ||
                t.submeter.toLowerCase().includes(filter) ||
                t.address.toLowerCase().includes(filter);
     });
@@ -710,7 +716,7 @@ function renderTenants() {
     if (filteredTenants.length === 0) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="10">
+                <td colspan="11">
                     <div class="empty-state" style="text-align: center; padding: 2.5rem 1.5rem;">
                         <i data-lucide="users" style="width: 48px; height: 48px; margin: 0 auto 1rem auto; display: block; color: var(--text-muted); opacity: 0.5;"></i>
                         <p style="color: var(--text-muted); font-size: 0.95rem;">${tenants.length === 0 ? 'No tenants registered yet. Add one using the form on the left!' : 'No matching tenants found.'}</p>
@@ -727,6 +733,7 @@ function renderTenants() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
+            <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.company || '-')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.address)}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
@@ -822,6 +829,11 @@ function handleReadingTenantChange() {
     }
 
     // Populate Previous and current reading details
+    refBuilding.textContent = tenant.building || 'N/A';
+    refBuilding.title = tenant.building || 'N/A';
+    refSubmeterId.textContent = tenant.submeter;
+    refUnitType.textContent = tenant.unitType.toUpperCase();
+
     readingPrevInput.value = tenant.currentReading;
     readingPrevInput.disabled = false;
     readingPrevDateInput.disabled = false;
@@ -1295,7 +1307,7 @@ function renderTakeoff() {
     if (tenants.length === 0) {
         takeoffTableBody.innerHTML = `
             <tr>
-                <td colspan="11">
+                <td colspan="12">
                     <div class="empty-state">
                         <i data-lucide="calculator" style="width: 48px; height: 48px;"></i>
                         <p>Configure tenants in the Tenant Directory tab first to generate a takeoff.</p>
@@ -1310,7 +1322,7 @@ function renderTakeoff() {
     if (filteredTenants.length === 0) {
         takeoffTableBody.innerHTML = `
             <tr>
-                <td colspan="11">
+                <td colspan="12">
                     <div class="empty-state">
                         <i data-lucide="calculator" style="width: 48px; height: 48px;"></i>
                         <p>No tenants found matching the active filters.</p>
@@ -1369,6 +1381,7 @@ function renderTakeoff() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
+            <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.company || '-')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${dateRangeText}</span></td>
@@ -1445,6 +1458,7 @@ function exportToExcel() {
 
             takeoffData.push({
                 'Store Name': tenant.name,
+                'Company': tenant.company || '',
                 'Building': tenant.building || 'N/A',
                 'Submeter ID': tenant.submeter,
                 'Unit Type': tenant.unitType.toUpperCase(),
@@ -1462,6 +1476,7 @@ function exportToExcel() {
         // --- 2. TENANT DIRECTORY SHEET DATA ---
         const directoryData = filteredTenants.map(t => ({
             'Store Name': t.name,
+            'Company': t.company || '',
             'Building': t.building || 'N/A',
             'Unit Address': t.address,
             'Submeter ID': t.submeter,
@@ -1480,6 +1495,7 @@ function exportToExcel() {
                 return {
                     'Reading Date': r.date,
                     'Store Name': tenant ? tenant.name : 'Unknown',
+                    'Company': tenant ? (tenant.company || '') : '',
                     'Submeter ID': tenant ? tenant.submeter : 'N/A',
                     'Unit Type': r.unitType.toUpperCase(),
                     'Previous Reading': r.prevReading,
