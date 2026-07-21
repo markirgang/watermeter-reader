@@ -865,8 +865,11 @@ function editTenant(id) {
     editingTenantId = tenant.id;
     tenantIdInput.value = tenant.id;
     tenantBuildingInput.value = tenant.buildingId || '';
-    tenantNameInput.value = tenant.name;
+    
+    // Populate dropdown options for this building so the tenant's name and address can be selected
+    populateTenantFormDropdowns();
 
+    tenantNameInput.value = tenant.name;
     tenantAddressInput.value = tenant.address;
     tenantSubmeterInput.value = tenant.submeter;
     tenantUnitSelect.value = tenant.unitType;
@@ -883,6 +886,9 @@ function editTenant(id) {
     saveTenantBtn.innerHTML = `<i data-lucide="save"></i> Update Tenant`;
     cancelEditTenantBtn.style.display = 'inline-flex';
     lucide.createIcons();
+
+    // Update state of edit buttons next to dropdowns
+    updateEditButtonsState();
 
     // Scroll to form on mobile
     tenantForm.scrollIntoView({ behavior: 'smooth' });
