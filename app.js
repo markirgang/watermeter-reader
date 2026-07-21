@@ -84,7 +84,8 @@ const takeoffEndDate = document.getElementById('takeoffEndDate');
 const takeoffBuildingFilter = document.getElementById('takeoffBuildingFilter');
 const takeoffTenantFilter = document.getElementById('takeoffTenantFilter');
 const takeoffTableBody = document.getElementById('takeoffTableBody');
-const exportExcelBtn = document.getElementById('exportExcelBtn');
+const exportExcelBtnReadings = document.getElementById('exportExcelBtnReadings');
+const exportExcelBtnTakeoff = document.getElementById('exportExcelBtnTakeoff');
 
 // DOM Elements - Backups
 const exportBackupBtn = document.getElementById('exportBackupBtn');
@@ -609,7 +610,12 @@ function setupEventListeners() {
         renderTakeoff();
     });
     takeoffTenantFilter.addEventListener('change', renderTakeoff);
-    exportExcelBtn.addEventListener('click', exportToExcel);
+    if (exportExcelBtnReadings) {
+        exportExcelBtnReadings.addEventListener('click', () => exportToExcel('readings'));
+    }
+    if (exportExcelBtnTakeoff) {
+        exportExcelBtnTakeoff.addEventListener('click', () => exportToExcel('takeoff'));
+    }
 
     // Backups
     exportBackupBtn.addEventListener('click', handleExportBackup);
@@ -1743,7 +1749,7 @@ function renderTakeoff() {
 }
 
 // --- EXCEL GENERATION ENGINE ---
-async function exportToExcel() {
+async function exportToExcel(source = 'takeoff') {
     if (tenants.length === 0) {
         showToast('No tenant data available to export.', 'error');
         return;
@@ -1755,12 +1761,20 @@ async function exportToExcel() {
         const startDate = new Date(start);
         const endDate = new Date(end);
 
-        const readingBuildingFilter = document.getElementById('readingBuildingFilter');
-        const readingTenantFilter = document.getElementById('readingTenantFilter');
-        const selectedBuilding = readingBuildingFilter ? readingBuildingFilter.value : '';
-        const selectedTenantId = readingTenantFilter ? readingTenantFilter.value : '';
+        let selectedBuilding = '';
+        let selectedTenantId = '';
 
-        // Filter tenants based on active reading filters
+        if (source === 'readings') {
+            const readingBuildingFilter = document.getElementById('readingBuildingFilter');
+            const readingTenantFilter = document.getElementById('readingTenantFilter');
+            selectedBuilding = readingBuildingFilter ? readingBuildingFilter.value : '';
+            selectedTenantId = readingTenantFilter ? readingTenantFilter.value : '';
+        } else {
+            selectedBuilding = takeoffBuildingFilter ? takeoffBuildingFilter.value : '';
+            selectedTenantId = takeoffTenantFilter ? takeoffTenantFilter.value : '';
+        }
+
+        // Filter tenants based on active filters
         const filteredTenants = tenants.filter(t => {
             const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
             const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
