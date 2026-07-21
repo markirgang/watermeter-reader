@@ -200,6 +200,25 @@ function loadData() {
     }
 }
 
+function normalizeBuildingAddressForComparison(addrStr) {
+    if (!addrStr) return '';
+    let s = addrStr.toLowerCase().trim();
+    s = s.replace(/\b[a-z]{2}\s+\d{5}\b/g, ''); 
+    s = s.replace(/\b\d{5}\b/g, ''); 
+    s = s.split(',')[0].trim();
+    s = s.replace(/^(\d+)-\d+/, '$1');
+    s = s.replace(/\broad\b/g, 'rd');
+    s = s.replace(/\bstreet\b/g, 'st');
+    s = s.replace(/\bavenue\b/g, 'ave');
+    s = s.replace(/\bwest\b/g, 'w');
+    s = s.replace(/\beast\b/g, 'e');
+    s = s.replace(/\bnorth\b/g, 'n');
+    s = s.replace(/\bsouth\b/g, 's');
+    s = s.replace(/[^a-z0-9]/g, ' ');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+}
+
 function migrateBuildingsData() {
     let updated = false;
     
@@ -246,7 +265,7 @@ function migrateBuildingsData() {
     customBuildings = customBuildings.filter(b => {
         const formatted = formatBuildingAddress(b);
         if (!formatted) return false;
-        const normAddr = formatted.trim().toLowerCase();
+        const normAddr = normalizeBuildingAddressForComparison(formatted);
         
         if (seenBuildingAddresses.has(normAddr)) {
             const retainedId = seenBuildingAddresses.get(normAddr);
@@ -343,6 +362,10 @@ function migrateBuildingsData() {
         tenants.forEach(t => {
             if (t.buildingId && buildingRemap[t.buildingId]) {
                 t.buildingId = buildingRemap[t.buildingId];
+                const bObj = findBuildingById(t.buildingId);
+                if (bObj) {
+                    t.building = formatBuildingAddress(bObj);
+                }
                 t.synced = false;
                 updated = true;
             }
@@ -421,11 +444,9 @@ function migrateBuildingsData() {
             // Find existing building with same formatted address or address1 line case-insensitively
             let b = customBuildings.find(item => {
                 const formatted = formatBuildingAddress(item);
-                const tBuildingStr = (t.building || '').toString().toLowerCase();
-                return formatted === t.building || 
-                       item.address1 === t.building || 
-                       formatted.toLowerCase() === tBuildingStr ||
-                       item.address1.toLowerCase() === tBuildingStr;
+                const tBuildingStr = (t.building || '').toString();
+                return normalizeBuildingAddressForComparison(formatted) === normalizeBuildingAddressForComparison(tBuildingStr) || 
+                       normalizeBuildingAddressForComparison(item.address1) === normalizeBuildingAddressForComparison(tBuildingStr);
             });
             if (!b) {
                 b = {
@@ -808,12 +829,15 @@ function handleTenantSubmit(e) {
     }
 
     // Check for duplicate tenant name in the same building
-    const isNameDuplicate = tenants.some(t => 
-        t.name.trim().toLowerCase() === name.toLowerCase() && 
-        t.buildingId === buildingId && 
-        t.id !== id && 
-        t.id !== editingTenantId
-    );
+    const targetBuilding = findBuildingById(buildingId);
+    const targetBuildingAddr = targetBuilding ? normalizeBuildingAddressForComparison(formatBuildingAddress(targetBuilding)) : '';
+    const isNameDuplicate = tenants.some(t => {
+        if (t.id === id || t.id === editingTenantId) return false;
+        if (t.name.trim().toLowerCase() !== name.toLowerCase()) return false;
+        const tbObj = findBuildingById(t.buildingId);
+        const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+        return tbAddr === targetBuildingAddr;
+    });
     if (isNameDuplicate) {
         showToast(`A tenant named "${name}" already exists in this property. Please use a unique name or edit the existing tenant.`, 'error');
         return;
@@ -1043,9 +1067,14 @@ function renderTenants() {
         return;
     }
 
+    const selectedBuildingObj = findBuildingById(selectedBuildingId);
+    const selectedBuildingAddr = selectedBuildingObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(selectedBuildingObj)) : '';
+
     const filteredTenants = tenants.filter(t => {
-        // Must match selected building ID
-        if (t.buildingId !== selectedBuildingId) return false;
+        // Must match selected building (by normalized address)
+        const tbObj = findBuildingById(t.buildingId);
+        const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+        if (tbAddr !== selectedBuildingAddr) return false;
         
         // Search filter matching
         const tName = (t.name || '').toString().toLowerCase();
@@ -1131,7 +1160,7 @@ function populateReadingBuildingDropdown() {
     const seenAddresses = new Set();
     const deduplicatedBuildings = [];
     Array.from(buildingsMap.values()).forEach(b => {
-        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        const addr = normalizeBuildingAddressForComparison(formatBuildingAddress(b));
         if (!seenAddresses.has(addr)) {
             seenAddresses.add(addr);
             deduplicatedBuildings.push(b);
@@ -1176,8 +1205,15 @@ function populateTenantDropdown(selectedBuildingId) {
     
     readingTenantSelect.disabled = false;
     
-    const normBuildingId = selectedBuildingId.toString().trim().toLowerCase();
-    const filteredTenants = tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === normBuildingId);
+    const bObj = findBuildingById(selectedBuildingId);
+    const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+    
+    const filteredTenants = tenants.filter(t => {
+        if (!t.buildingId) return false;
+        const tbObj = findBuildingById(t.buildingId);
+        const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+        return tbAddr === selectedBuildingAddr;
+    });
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
     
     const seenIds = new Set();
@@ -1433,7 +1469,11 @@ function renderReadings() {
         // Filter by building
         if (selectedBuilding) {
             if (!tenant || !tenant.buildingId) return false;
-            if (tenant.buildingId.toString().trim().toLowerCase() !== selectedBuilding.toString().trim().toLowerCase()) {
+            const bObj = findBuildingById(selectedBuilding);
+            const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+            const tbObj = findBuildingById(tenant.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(tenant.building);
+            if (tbAddr !== selectedBuildingAddr) {
                 return false;
             }
         }
@@ -1536,7 +1576,7 @@ function populateReadingFilters() {
     const seenAddresses = new Set();
     const deduplicatedBuildings = [];
     Array.from(buildingsMap.values()).forEach(b => {
-        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        const addr = normalizeBuildingAddressForComparison(formatBuildingAddress(b));
         if (!seenAddresses.has(addr)) {
             seenAddresses.add(addr);
             deduplicatedBuildings.push(b);
@@ -1570,10 +1610,19 @@ function populateReadingFilters() {
 
     // Restore tenant selection if valid for this building
     const selectedBuildingId = readingBuildingFilter.value;
-    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
-    const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
-        : tenants;
+    let filteredTenants = [];
+    if (selectedBuildingId) {
+        const bObj = findBuildingById(selectedBuildingId);
+        const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+        filteredTenants = tenants.filter(t => {
+            if (!t.buildingId) return false;
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            return tbAddr === selectedBuildingAddr;
+        });
+    } else {
+        filteredTenants = tenants;
+    }
     const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
     if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
         const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
@@ -1589,10 +1638,19 @@ function updateReadingTenantFilter() {
     const currentTenantSelection = readingTenantFilter.value;
     const selectedBuildingId = readingBuildingFilter.value;
 
-    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
-    const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
-        : tenants;
+    let filteredTenants = [];
+    if (selectedBuildingId) {
+        const bObj = findBuildingById(selectedBuildingId);
+        const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+        filteredTenants = tenants.filter(t => {
+            if (!t.buildingId) return false;
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            return tbAddr === selectedBuildingAddr;
+        });
+    } else {
+        filteredTenants = tenants;
+    }
 
     // Sort tenants by name
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
@@ -1641,7 +1699,7 @@ function populateTakeoffFilters() {
     const seenAddresses = new Set();
     const deduplicatedBuildings = [];
     Array.from(buildingsMap.values()).forEach(b => {
-        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        const addr = normalizeBuildingAddressForComparison(formatBuildingAddress(b));
         if (!seenAddresses.has(addr)) {
             seenAddresses.add(addr);
             deduplicatedBuildings.push(b);
@@ -1675,10 +1733,19 @@ function populateTakeoffFilters() {
 
     // Restore tenant selection if valid for this building
     const selectedBuildingId = takeoffBuildingFilter.value;
-    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
-    const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
-        : tenants;
+    let filteredTenants = [];
+    if (selectedBuildingId) {
+        const bObj = findBuildingById(selectedBuildingId);
+        const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+        filteredTenants = tenants.filter(t => {
+            if (!t.buildingId) return false;
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            return tbAddr === selectedBuildingAddr;
+        });
+    } else {
+        filteredTenants = tenants;
+    }
     const currentTenantSelectionNorm = currentTenantSelection ? currentTenantSelection.toString().trim().toLowerCase() : '';
     if (currentTenantSelection && filteredTenants.some(t => t.id && t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm)) {
         const matchedTenant = filteredTenants.find(t => t.id.toString().trim().toLowerCase() === currentTenantSelectionNorm);
@@ -1692,10 +1759,19 @@ function updateTakeoffTenantFilter() {
     const currentTenantSelection = takeoffTenantFilter.value;
     const selectedBuildingId = takeoffBuildingFilter.value;
 
-    const selectedBuildingIdNorm = selectedBuildingId ? selectedBuildingId.toString().trim().toLowerCase() : '';
-    const filteredTenants = selectedBuildingId 
-        ? tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === selectedBuildingIdNorm)
-        : tenants;
+    let filteredTenants = [];
+    if (selectedBuildingId) {
+        const bObj = findBuildingById(selectedBuildingId);
+        const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+        filteredTenants = tenants.filter(t => {
+            if (!t.buildingId) return false;
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            return tbAddr === selectedBuildingAddr;
+        });
+    } else {
+        filteredTenants = tenants;
+    }
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
 
     takeoffTenantFilter.innerHTML = '<option value="">All Tenants</option>';
@@ -1735,9 +1811,17 @@ function renderTakeoff() {
     const selectedBuilding = takeoffBuildingFilter ? takeoffBuildingFilter.value : '';
     const selectedTenantId = takeoffTenantFilter ? takeoffTenantFilter.value : '';
 
+    const selectedBuildingObj = selectedBuilding ? findBuildingById(selectedBuilding) : null;
+    const selectedBuildingAddr = selectedBuildingObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(selectedBuildingObj)) : '';
+
     // Filter tenants based on building/tenant dropdown filters
     const filteredTenants = tenants.filter(t => {
-        const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
+        let matchesBuilding = true;
+        if (selectedBuilding) {
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            matchesBuilding = tbAddr === selectedBuildingAddr;
+        }
         const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
         return matchesBuilding && matchesTenant;
     });
@@ -1894,8 +1978,16 @@ async function exportToExcel(source = 'takeoff') {
         }
 
         // Filter tenants based on active filters
+        const selectedBuildingObj = selectedBuilding ? findBuildingById(selectedBuilding) : null;
+        const selectedBuildingAddr = selectedBuildingObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(selectedBuildingObj)) : '';
+
         const filteredTenants = tenants.filter(t => {
-            const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
+            let matchesBuilding = true;
+            if (selectedBuilding) {
+                const tbObj = findBuildingById(t.buildingId);
+                const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+                matchesBuilding = tbAddr === selectedBuildingAddr;
+            }
             const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
             return matchesBuilding && matchesTenant;
         });
@@ -2283,6 +2375,8 @@ function handleImportExcel(e) {
             if (newCustomTenantNames.length > 0) customTenantNames = newCustomTenantNames;
             if (newCustomAddresses.length > 0) customAddresses = newCustomAddresses;
 
+            migrateBuildingsData();
+
             saveData();
             renderAll();
             showToast(`Data imported successfully from Excel! Loaded ${tenants.length} tenants and ${readings.length} readings.`, 'success');
@@ -2519,7 +2613,7 @@ function populateTenantFormDropdowns() {
     const seenAddresses = new Set();
     const deduplicatedBuildings = [];
     Array.from(buildingsMap.values()).forEach(b => {
-        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        const addr = normalizeBuildingAddressForComparison(formatBuildingAddress(b));
         if (!seenAddresses.has(addr)) {
             seenAddresses.add(addr);
             deduplicatedBuildings.push(b);
@@ -2535,9 +2629,18 @@ function populateTenantFormDropdowns() {
     const namesSet = new Set();
     const addressesSet = new Set();
 
+    const bObj = selectedBuildingId ? findBuildingById(selectedBuildingId) : null;
+    const selectedBuildingAddr = bObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(bObj)) : '';
+
     // Filter store names, addresses, and companies by the currently selected building ID, if any
     tenants.forEach(t => {
-        if (!selectedBuildingId || t.buildingId === selectedBuildingId) {
+        let matches = true;
+        if (selectedBuildingId) {
+            const tbObj = findBuildingById(t.buildingId);
+            const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+            matches = tbAddr === selectedBuildingAddr;
+        }
+        if (matches) {
             if (t.name) namesSet.add(t.name);
             if (t.address) addressesSet.add(t.address);
         }
@@ -2548,8 +2651,16 @@ function populateTenantFormDropdowns() {
         if (!n) return;
         const nameVal = typeof n === 'string' ? n : n.name;
         if (selectedBuildingId) {
-            const assignedToThisBuilding = tenants.some(t => t.name === nameVal && t.buildingId === selectedBuildingId);
-            const assignedToOtherBuildings = tenants.some(t => t.name === nameVal && t.buildingId !== selectedBuildingId);
+            const assignedToThisBuilding = tenants.some(t => {
+                const tbObj = findBuildingById(t.buildingId);
+                const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+                return t.name === nameVal && tbAddr === selectedBuildingAddr;
+            });
+            const assignedToOtherBuildings = tenants.some(t => {
+                const tbObj = findBuildingById(t.buildingId);
+                const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+                return t.name === nameVal && tbAddr !== selectedBuildingAddr;
+            });
             if (assignedToOtherBuildings && !assignedToThisBuilding) {
                 return;
             }
@@ -2560,8 +2671,16 @@ function populateTenantFormDropdowns() {
         if (!a) return;
         const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
         if (selectedBuildingId) {
-            const assignedToThisBuilding = tenants.some(t => t.address === addrStr && t.buildingId === selectedBuildingId);
-            const assignedToOtherBuildings = tenants.some(t => t.address === addrStr && t.buildingId !== selectedBuildingId);
+            const assignedToThisBuilding = tenants.some(t => {
+                const tbObj = findBuildingById(t.buildingId);
+                const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+                return t.address === addrStr && tbAddr === selectedBuildingAddr;
+            });
+            const assignedToOtherBuildings = tenants.some(t => {
+                const tbObj = findBuildingById(t.buildingId);
+                const tbAddr = tbObj ? normalizeBuildingAddressForComparison(formatBuildingAddress(tbObj)) : normalizeBuildingAddressForComparison(t.building);
+                return t.address === addrStr && tbAddr !== selectedBuildingAddr;
+            });
             if (assignedToOtherBuildings && !assignedToThisBuilding) {
                 return;
             }
