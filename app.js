@@ -240,6 +240,25 @@ function migrateBuildingsData() {
         return normalized;
     });
 
+    // Deduplicate customBuildings by formatted address and build remapping dictionary
+    const seenBuildingAddresses = new Map(); // formattedAddress -> retainedId
+    const buildingRemap = {}; // duplicateId -> retainedId
+
+    customBuildings = customBuildings.filter(b => {
+        const formatted = formatBuildingAddress(b);
+        if (!formatted) return false;
+        const normAddr = formatted.trim().toLowerCase();
+        
+        if (seenBuildingAddresses.has(normAddr)) {
+            const retainedId = seenBuildingAddresses.get(normAddr);
+            buildingRemap[b.id] = retainedId;
+            updated = true;
+            return false;
+        }
+        seenBuildingAddresses.set(normAddr, b.id);
+        return true;
+    });
+
     // Normalize case-insensitive property keys for tenants
     tenants = tenants.map(t => {
         const normalized = { ...t };
@@ -319,6 +338,17 @@ function migrateBuildingsData() {
         seenTenantIds.add(normId);
         return true;
     });
+
+    // Remap tenant buildingIds to the retained building IDs
+    if (Object.keys(buildingRemap).length > 0) {
+        tenants.forEach(t => {
+            if (t.buildingId && buildingRemap[t.buildingId]) {
+                t.buildingId = buildingRemap[t.buildingId];
+                t.synced = false;
+                updated = true;
+            }
+        });
+    }
 
     // Normalize case-insensitive property keys for readings
     readings = readings.map(r => {
@@ -1116,7 +1146,17 @@ function populateReadingBuildingDropdown() {
         }
     });
     
-    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+    const seenAddresses = new Set();
+    const deduplicatedBuildings = [];
+    Array.from(buildingsMap.values()).forEach(b => {
+        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        if (!seenAddresses.has(addr)) {
+            seenAddresses.add(addr);
+            deduplicatedBuildings.push(b);
+        }
+    });
+    
+    const sortedBuildings = deduplicatedBuildings.sort((a, b) => {
         const addrA = formatBuildingAddress(a);
         const addrB = formatBuildingAddress(b);
         return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
@@ -1510,7 +1550,18 @@ function populateReadingFilters() {
             buildingsMap.set(normId, bObj);
         }
     });
-    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+    
+    const seenAddresses = new Set();
+    const deduplicatedBuildings = [];
+    Array.from(buildingsMap.values()).forEach(b => {
+        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        if (!seenAddresses.has(addr)) {
+            seenAddresses.add(addr);
+            deduplicatedBuildings.push(b);
+        }
+    });
+    
+    const sortedBuildings = deduplicatedBuildings.sort((a, b) => {
         const addrA = formatBuildingAddress(a);
         const addrB = formatBuildingAddress(b);
         return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
@@ -1604,7 +1655,18 @@ function populateTakeoffFilters() {
             buildingsMap.set(normId, bObj);
         }
     });
-    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+    
+    const seenAddresses = new Set();
+    const deduplicatedBuildings = [];
+    Array.from(buildingsMap.values()).forEach(b => {
+        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        if (!seenAddresses.has(addr)) {
+            seenAddresses.add(addr);
+            deduplicatedBuildings.push(b);
+        }
+    });
+    
+    const sortedBuildings = deduplicatedBuildings.sort((a, b) => {
         const addrA = formatBuildingAddress(a);
         const addrB = formatBuildingAddress(b);
         return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
@@ -2479,7 +2541,18 @@ function populateTenantFormDropdowns() {
             });
         }
     });
-    const sortedBuildings = Array.from(buildingsMap.values()).sort((a, b) => {
+    
+    const seenAddresses = new Set();
+    const deduplicatedBuildings = [];
+    Array.from(buildingsMap.values()).forEach(b => {
+        const addr = formatBuildingAddress(b).trim().toLowerCase();
+        if (!seenAddresses.has(addr)) {
+            seenAddresses.add(addr);
+            deduplicatedBuildings.push(b);
+        }
+    });
+    
+    const sortedBuildings = deduplicatedBuildings.sort((a, b) => {
         const addrA = formatBuildingAddress(a);
         const addrB = formatBuildingAddress(b);
         return addrA.localeCompare(addrB, undefined, {numeric: true, sensitivity: 'base'});
