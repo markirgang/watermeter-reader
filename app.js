@@ -1756,10 +1756,10 @@ async function exportToExcel(source = 'takeoff') {
     }
 
     try {
-        const start = takeoffStartDate.value;
-        const end = takeoffEndDate.value;
-        const startDate = new Date(start);
-        const endDate = new Date(end);
+        const start = takeoffStartDate ? takeoffStartDate.value : '';
+        const end = takeoffEndDate ? takeoffEndDate.value : '';
+        const startDate = start ? new Date(start) : new Date();
+        const endDate = end ? new Date(end) : new Date();
 
         let selectedBuilding = '';
         let selectedTenantId = '';
@@ -1818,7 +1818,7 @@ async function exportToExcel(source = 'takeoff') {
                 'Store Name': tenant.name,
                 'Building': tenant.building || 'N/A',
                 'Submeter ID': tenant.submeter,
-                'Unit Type': tenant.unitType.toUpperCase(),
+                'Unit Type': (tenant.unitType || 'cf').toUpperCase(),
                 'Billing Start Date': start,
                 'Billing End Date': end,
                 'Start Reading': startRead,
@@ -1836,7 +1836,7 @@ async function exportToExcel(source = 'takeoff') {
             'Building': t.building || 'N/A',
             'Unit Address': t.address,
             'Submeter ID': t.submeter,
-            'Unit Type': t.unitType.toUpperCase(),
+            'Unit Type': (t.unitType || 'cf').toUpperCase(),
             'Billing Rate ($/unit)': t.rate,
             'Current Reading Value': t.currentReading,
             'Last Reading Date': t.currentDate
@@ -1852,7 +1852,7 @@ async function exportToExcel(source = 'takeoff') {
                     'Reading Date': r.date,
                     'Store Name': tenant ? tenant.name : 'Unknown',
                     'Submeter ID': tenant ? tenant.submeter : 'N/A',
-                    'Unit Type': r.unitType.toUpperCase(),
+                    'Unit Type': (r.unitType || (tenant ? tenant.unitType : '') || 'cf').toUpperCase(),
                     'Previous Reading': r.prevReading,
                     'Current Reading': r.currReading,
                     'Consumed': r.consumed,
@@ -1938,7 +1938,7 @@ async function exportToExcel(source = 'takeoff') {
         }
     } catch (error) {
         console.error(error);
-        showToast('Failed to export Excel file.', 'error');
+        showToast('Failed to export Excel file: ' + (error.message || error), 'error');
     }
 }
 
