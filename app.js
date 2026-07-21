@@ -44,7 +44,6 @@ const cancelModalBtn = document.getElementById('cancelModalBtn');
 
 const addBuildingBtn = document.getElementById('addBuildingBtn');
 const addTenantBtn = document.getElementById('addTenantBtn');
-const addAddressBtn = document.getElementById('addAddressBtn');
 
 // DOM Elements - Reading Modal
 const logReadingModal = document.getElementById('logReadingModal');
@@ -544,17 +543,12 @@ function setupEventListeners() {
     // Modal buttons & submission
     addBuildingBtn.addEventListener('click', () => openModal('building'));
     addTenantBtn.addEventListener('click', () => openModal('tenantName'));
-    addAddressBtn.addEventListener('click', () => openModal('address'));
     
-
-
     const editBuildingBtn = document.getElementById('editBuildingBtn');
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
-    const editAddressBtn = document.getElementById('editAddressBtn');
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
-    const deleteAddressBtn = document.getElementById('deleteAddressBtn');
 
     if (editBuildingBtn) {
         editBuildingBtn.addEventListener('click', () => openModal('editBuilding'));
@@ -562,18 +556,12 @@ function setupEventListeners() {
     if (editTenantNameBtn) {
         editTenantNameBtn.addEventListener('click', () => openModal('editTenantName'));
     }
-    if (editAddressBtn) {
-        editAddressBtn.addEventListener('click', () => openModal('editAddress'));
-    }
 
     if (deleteBuildingBtn) {
         deleteBuildingBtn.addEventListener('click', deleteBuilding);
     }
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.addEventListener('click', deleteTenantName);
-    }
-    if (deleteAddressBtn) {
-        deleteAddressBtn.addEventListener('click', deleteAddress);
     }
 
     
@@ -589,13 +577,7 @@ function setupEventListeners() {
     
     modalForm.addEventListener('submit', handleModalSubmit);
 
-    // Auto-generate submeter on address change
-    tenantAddressInput.addEventListener('change', () => {
-        if (!tenantSubmeterInput.value) {
-            tenantSubmeterInput.value = generateSubmeterId(tenantAddressInput.value);
-        }
-        updateEditButtonsState();
-    });
+
 
 
 
@@ -2317,11 +2299,9 @@ function handleImportExcel(e) {
 function updateEditButtonsState() {
     const editBuildingBtn = document.getElementById('editBuildingBtn');
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
-    const editAddressBtn = document.getElementById('editAddressBtn');
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
-    const deleteAddressBtn = document.getElementById('deleteAddressBtn');
     
     if (editBuildingBtn) {
         editBuildingBtn.disabled = !tenantBuildingInput.value;
@@ -2329,17 +2309,11 @@ function updateEditButtonsState() {
     if (editTenantNameBtn) {
         editTenantNameBtn.disabled = !tenantNameInput.value;
     }
-    if (editAddressBtn) {
-        editAddressBtn.disabled = !tenantAddressInput.value;
-    }
     if (deleteBuildingBtn) {
         deleteBuildingBtn.disabled = !tenantBuildingInput.value;
     }
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.disabled = !tenantNameInput.value;
-    }
-    if (deleteAddressBtn) {
-        deleteAddressBtn.disabled = !tenantAddressInput.value;
     }
 }
 
@@ -2636,7 +2610,6 @@ function populateTenantFormDropdowns() {
 
     updateBuildingSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
     updateSelect(tenantNameInput, sortedNames, 'Select Store...');
-    updateSelect(tenantAddressInput, sortedAddresses, 'Select Address...');
     updateEditButtonsState();
 }
 
@@ -2710,36 +2683,13 @@ function openModal(mode) {
         // Submeter is optional
         document.getElementById('modalTenantSubmeter').required = false;
         
-        // Populate Address Dropdown in modal
-        const populateModalAddressDropdown = () => {
-            const addressesSet = new Set();
-            tenants.forEach(t => {
-                if (t.address) addressesSet.add(t.address);
-            });
-            customAddresses.forEach(a => {
-                if (!a) return;
-                const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
-                addressesSet.add(addrStr);
-            });
-            const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-            
-            const modalTenantAddressSelect = document.getElementById('modalTenantAddress');
-            if (modalTenantAddressSelect) {
-                modalTenantAddressSelect.innerHTML = '<option value="" disabled selected>Select Address...</option>';
-                sortedAddresses.forEach(addr => {
-                    const option = document.createElement('option');
-                    option.value = addr;
-                    option.textContent = addr;
-                    modalTenantAddressSelect.appendChild(option);
-                });
-            }
-        };
-        populateModalAddressDropdown();
-
         // Clear values
         document.getElementById('modalTenantNameValue').value = '';
-
-        document.getElementById('modalTenantAddress').value = '';
+        document.getElementById('modalTenantAddress1').value = '';
+        document.getElementById('modalTenantPremises').value = '';
+        document.getElementById('modalTenantContact').value = '';
+        document.getElementById('modalTenantEmail').value = '';
+        document.getElementById('modalTenantStoreNumber').value = '';
         document.getElementById('modalTenantSubmeter').value = '';
         document.getElementById('modalTenantUnit').value = 'cf';
         document.getElementById('modalTenantRate').value = '';
@@ -2758,48 +2708,28 @@ function openModal(mode) {
         // Submeter is optional
         document.getElementById('modalTenantSubmeter').required = false;
         
-        // Populate Address Dropdown in modal
-        const populateModalAddressDropdown = () => {
-            const addressesSet = new Set();
-            tenants.forEach(t => {
-                if (t.address) addressesSet.add(t.address);
-            });
-            customAddresses.forEach(a => {
-                if (!a) return;
-                const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
-                addressesSet.add(addrStr);
-            });
-            const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-            
-            const modalTenantAddressSelect = document.getElementById('modalTenantAddress');
-            if (modalTenantAddressSelect) {
-                modalTenantAddressSelect.innerHTML = '<option value="" disabled selected>Select Address...</option>';
-                sortedAddresses.forEach(addr => {
-                    const option = document.createElement('option');
-                    option.value = addr;
-                    option.textContent = addr;
-                    modalTenantAddressSelect.appendChild(option);
-                });
-            }
-        };
-        populateModalAddressDropdown();
-
         document.getElementById('modalTenantNameValue').value = selectedVal || '';
+        let parsedAddr = { address1: '', premises: '', contact: '', email: '', storeNumber: '' };
         if (tenantObj && typeof tenantObj === 'object') {
-
-            document.getElementById('modalTenantAddress').value = tenantObj.address || '';
+            if (tenantObj.address) {
+                parsedAddr = parseUnitAddress(tenantObj.address);
+            }
             document.getElementById('modalTenantSubmeter').value = tenantObj.submeter || '';
             document.getElementById('modalTenantUnit').value = tenantObj.unitType || 'cf';
             document.getElementById('modalTenantRate').value = tenantObj.rate !== undefined ? tenantObj.rate : '';
             document.getElementById('modalTenantInitialReading').value = tenantObj.initialReading !== undefined ? tenantObj.initialReading : '0';
         } else {
-
-            document.getElementById('modalTenantAddress').value = '';
             document.getElementById('modalTenantSubmeter').value = '';
             document.getElementById('modalTenantUnit').value = 'cf';
             document.getElementById('modalTenantRate').value = '';
             document.getElementById('modalTenantInitialReading').value = '0';
         }
+        
+        document.getElementById('modalTenantAddress1').value = parsedAddr.address1 || '';
+        document.getElementById('modalTenantPremises').value = parsedAddr.premises || '';
+        document.getElementById('modalTenantContact').value = parsedAddr.contact || '';
+        document.getElementById('modalTenantEmail').value = parsedAddr.email || '';
+        document.getElementById('modalTenantStoreNumber').value = parsedAddr.storeNumber || '';
         
         setTimeout(() => document.getElementById('modalTenantNameValue').focus(), 100);
     } else if (mode === 'address') {
@@ -2869,7 +2799,11 @@ function closeModal() {
     
     // Clear all fields
     document.getElementById('modalTenantNameValue').value = '';
-    document.getElementById('modalTenantAddress').value = '';
+    document.getElementById('modalTenantAddress1').value = '';
+    document.getElementById('modalTenantPremises').value = '';
+    document.getElementById('modalTenantContact').value = '';
+    document.getElementById('modalTenantEmail').value = '';
+    document.getElementById('modalTenantStoreNumber').value = '';
     document.getElementById('modalTenantSubmeter').value = '';
     document.getElementById('modalTenantUnit').value = 'cf';
     document.getElementById('modalTenantRate').value = '';
@@ -3118,7 +3052,20 @@ function handleModalSubmit(e) {
         const value = document.getElementById('modalTenantNameValue').value.trim();
         if (!value) return;
         
-        const addressVal = document.getElementById('modalTenantAddress').value;
+        const address1 = document.getElementById('modalTenantAddress1').value.trim();
+        const premises = document.getElementById('modalTenantPremises').value.trim();
+        const contact = document.getElementById('modalTenantContact').value.trim();
+        const email = document.getElementById('modalTenantEmail').value.trim();
+        const storeNumber = document.getElementById('modalTenantStoreNumber').value.trim();
+
+        const addressVal = formatUnitAddress({
+            address1,
+            premises,
+            contact,
+            email,
+            storeNumber
+        });
+
         const submeterVal = document.getElementById('modalTenantSubmeter').value.trim();
         const unitTypeVal = document.getElementById('modalTenantUnit').value;
         const rateVal = parseFloat(document.getElementById('modalTenantRate').value) || 0;

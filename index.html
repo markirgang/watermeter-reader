@@ -121,30 +121,10 @@
 
  
                         <div class="form-group">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 0.5rem;">
-                                <label for="tenantAddress" style="margin-bottom: 0;">Unit Address *</label>
-                                <div style="display: flex; gap: 0.5rem; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
-                                    <span style="width: 44px; text-align: center;">Add New</span>
-                                    <span style="width: 44px; text-align: center;">Edit</span>
-                                    <span style="width: 44px; text-align: center;">Delete</span>
-                                </div>
-                            </div>
-                            <div class="input-with-button">
-                                <div class="input-icon-wrapper">
-                                    <i data-lucide="map-pin" class="input-icon"></i>
-                                    <select id="tenantAddress" required>
-                                        <option value="" disabled selected>Select Address...</option>
-                                    </select>
-                                </div>
-                                <button type="button" id="addAddressBtn" class="btn btn-secondary btn-icon add-btn" title="Add New Address">
-                                    <i data-lucide="plus-circle"></i>
-                                </button>
-                                <button type="button" id="editAddressBtn" class="btn btn-secondary btn-icon edit-btn" title="Edit Selected Address" disabled>
-                                    <i data-lucide="pencil"></i>
-                                </button>
-                                <button type="button" id="deleteAddressBtn" class="btn btn-secondary btn-icon delete-btn" title="Delete Selected Address" disabled>
-                                    <i data-lucide="trash-2"></i>
-                                </button>
+                            <label for="tenantAddress">Unit Address *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="map-pin" class="input-icon"></i>
+                                <input type="text" id="tenantAddress" placeholder="Populated from tenant profile" readonly required>
                             </div>
                         </div>
 
@@ -433,12 +413,40 @@
                         </div>
 
                         <div class="form-group" style="margin-top: 1rem;">
-                            <label for="modalTenantAddress">Unit Address *</label>
+                            <label for="modalTenantAddress1">Unit Address *</label>
                             <div class="input-icon-wrapper">
                                 <i data-lucide="map-pin" class="input-icon"></i>
-                                <select id="modalTenantAddress">
-                                    <option value="" disabled selected>Select Address...</option>
-                                </select>
+                                <input type="text" id="modalTenantAddress1" placeholder="e.g. 123 Main St" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantPremises">Premises *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="home" class="input-icon"></i>
+                                <input type="text" id="modalTenantPremises" placeholder="e.g. Suite 4B or Store Front" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-group">
+                                <label for="modalTenantContact">Contact *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="user" class="input-icon"></i>
+                                    <input type="text" id="modalTenantContact" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="modalTenantEmail">Email *</label>
+                                <div class="input-icon-wrapper">
+                                    <i data-lucide="mail" class="input-icon"></i>
+                                    <input type="email" id="modalTenantEmail" placeholder="tenant@example.com" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="modalTenantStoreNumber">Store Number *</label>
+                            <div class="input-icon-wrapper">
+                                <i data-lucide="hash" class="input-icon"></i>
+                                <input type="text" id="modalTenantStoreNumber" placeholder="e.g. Store #102" autocomplete="off">
                             </div>
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
