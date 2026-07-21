@@ -37,6 +37,7 @@
                     <i data-lucide="upload-cloud"></i> Restore Backup
                 </button>
                 <input type="file" id="backupFileInput" style="display: none;" accept=".json">
+                <input type="file" id="importExcelFileInput" style="display: none;" accept=".xlsx, .xls">
             </div>
         </header>
 
@@ -268,6 +269,9 @@
                         <button id="exportExcelBtnReadings" class="btn btn-primary btn-sm">
                             <i data-lucide="file-spreadsheet"></i> Export to Excel
                         </button>
+                        <button id="importExcelBtnReadings" class="btn btn-secondary btn-sm" style="margin-left: 0.5rem;">
+                            <i data-lucide="upload"></i> Import from Excel
+                        </button>
                     </div>
                 </div>
                 
@@ -363,6 +367,9 @@
                         </div>
                         <button id="exportExcelBtnTakeoff" class="btn btn-primary btn-sm">
                             <i data-lucide="file-spreadsheet"></i> Export to Excel
+                        </button>
+                        <button id="importExcelBtnTakeoff" class="btn btn-secondary btn-sm" style="margin-left: 0.5rem;">
+                            <i data-lucide="upload"></i> Import from Excel
                         </button>
                     </div>
                 </div>

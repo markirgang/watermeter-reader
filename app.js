@@ -86,6 +86,9 @@ const takeoffTenantFilter = document.getElementById('takeoffTenantFilter');
 const takeoffTableBody = document.getElementById('takeoffTableBody');
 const exportExcelBtnReadings = document.getElementById('exportExcelBtnReadings');
 const exportExcelBtnTakeoff = document.getElementById('exportExcelBtnTakeoff');
+const importExcelBtnReadings = document.getElementById('importExcelBtnReadings');
+const importExcelBtnTakeoff = document.getElementById('importExcelBtnTakeoff');
+const importExcelFileInput = document.getElementById('importExcelFileInput');
 
 // DOM Elements - Backups
 const exportBackupBtn = document.getElementById('exportBackupBtn');
@@ -621,6 +624,15 @@ function setupEventListeners() {
     exportBackupBtn.addEventListener('click', handleExportBackup);
     importBackupBtn.addEventListener('click', () => backupFileInput.click());
     backupFileInput.addEventListener('change', handleImportBackup);
+    if (importExcelBtnReadings) {
+        importExcelBtnReadings.addEventListener('click', () => importExcelFileInput.click());
+    }
+    if (importExcelBtnTakeoff) {
+        importExcelBtnTakeoff.addEventListener('click', () => importExcelFileInput.click());
+    }
+    if (importExcelFileInput) {
+        importExcelFileInput.addEventListener('change', handleImportExcel);
+    }
 
     // Cloud Sync
     if (syncSettingsBtn) {
@@ -2005,6 +2017,175 @@ function handleImportBackup(e) {
         backupFileInput.value = '';
     };
     reader.readAsText(file);
+}
+
+function handleImportExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        try {
+            const data = new Uint8Array(event.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            const sheetDirectory = workbook.Sheets['Tenant Directory'];
+            const sheetHistory = workbook.Sheets['All Reading Logs'];
+
+            if (!sheetDirectory) {
+                showToast('Import failed: "Tenant Directory" sheet not found in workbook.', 'error');
+                return;
+            }
+
+            const directoryRows = XLSX.utils.sheet_to_json(sheetDirectory);
+            const historyRows = sheetHistory ? XLSX.utils.sheet_to_json(sheetHistory) : [];
+
+            if (directoryRows.length === 0) {
+                showToast('Import failed: No tenant data found in "Tenant Directory".', 'error');
+                return;
+            }
+
+            const importedTenants = [];
+            const importedBuildings = [];
+            const buildingsMap = new Map(); // formattedAddress -> id
+
+            directoryRows.forEach(row => {
+                const name = row['Store Name'] || '';
+                const buildingAddress = row['Building'] || '';
+                const address = row['Unit Address'] || '';
+                const submeter = row['Submeter ID'] || '';
+                const unitType = (row['Unit Type'] || 'cf').toString().toLowerCase().trim();
+                const rate = parseFloat(row['Billing Rate ($/unit)']) || 0;
+                const currentReading = parseFloat(row['Current Reading Value']) || 0;
+                const currentDate = row['Last Reading Date'] || '';
+
+                if (!name) return;
+
+                // Resolve or create building
+                let buildingId = '';
+                if (buildingAddress && buildingAddress !== 'N/A') {
+                    if (!buildingsMap.has(buildingAddress)) {
+                        const bId = 'building_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                        buildingsMap.set(buildingAddress, bId);
+                        const parts = buildingAddress.split(',').map(p => p.trim());
+                        importedBuildings.push({
+                            id: bId,
+                            address1: parts[0] || buildingAddress,
+                            address2: '',
+                            city: parts[1] || '',
+                            state: parts[2] ? parts[2].split(' ')[0] : '',
+                            zipCode: parts[2] ? parts[2].split(' ')[1] : ''
+                        });
+                    }
+                    buildingId = buildingsMap.get(buildingAddress);
+                }
+
+                importedTenants.push({
+                    id: 'tenant_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    buildingId,
+                    building: buildingAddress === 'N/A' ? '' : buildingAddress,
+                    name,
+                    address,
+                    submeter,
+                    unitType: unitType === 'gal' ? 'gal' : 'cf',
+                    rate,
+                    initialReading: currentReading, // fallback
+                    initialDate: currentDate,        // fallback
+                    currentReading,
+                    currentDate,
+                    synced: false
+                });
+            });
+
+            const importedReadings = [];
+            historyRows.forEach(row => {
+                const readingDate = row['Reading Date'] || '';
+                const storeName = row['Store Name'] || '';
+                const submeter = row['Submeter ID'] || '';
+                const unitType = (row['Unit Type'] || 'cf').toString().toLowerCase().trim();
+                const prevReading = parseFloat(row['Previous Reading']) || 0;
+                const currReading = parseFloat(row['Current Reading']) || 0;
+                const consumed = parseFloat(row['Consumed']) || 0;
+                const rate = parseFloat(row['Rate Applied']) || 0;
+                const cost = parseFloat(row['Cost Calculated']) || 0;
+                const comments = row['Comments'] || '';
+
+                const tenant = importedTenants.find(t => t.name === storeName && t.submeter === submeter);
+                if (tenant) {
+                    importedReadings.push({
+                        id: 'reading_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        tenantId: tenant.id,
+                        date: readingDate,
+                        unitType: unitType === 'gal' ? 'gal' : 'cf',
+                        prevReading,
+                        currReading,
+                        consumed,
+                        rate,
+                        cost,
+                        comments
+                    });
+                }
+            });
+
+            // Adjust tenant initial readings/dates based on readings history
+            importedTenants.forEach(tenant => {
+                const tenantReadings = importedReadings
+                    .filter(r => r.tenantId === tenant.id)
+                    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                if (tenantReadings.length > 0) {
+                    tenant.initialReading = tenantReadings[0].prevReading;
+                    tenant.initialDate = tenantReadings[0].date;
+                    const latest = tenantReadings[tenantReadings.length - 1];
+                    tenant.currentReading = latest.currReading;
+                    tenant.currentDate = latest.date;
+                }
+            });
+
+            // Rebuild custom metadata collections
+            const newCustomTenantNames = importedTenants.map(t => ({
+                name: t.name,
+                address: t.address,
+                submeter: t.submeter,
+                unitType: t.unitType,
+                rate: t.rate,
+                initialReading: t.initialReading
+            }));
+
+            const newCustomAddresses = [];
+            const seenAddresses = new Set();
+            importedTenants.forEach(t => {
+                if (t.address && !seenAddresses.has(t.address)) {
+                    seenAddresses.add(t.address);
+                    newCustomAddresses.push({
+                        id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        address1: t.address,
+                        premises: '',
+                        contact: '',
+                        email: '',
+                        storeNumber: ''
+                    });
+                }
+            });
+
+            // Commit to active state
+            tenants = importedTenants;
+            readings = importedReadings;
+            if (importedBuildings.length > 0) customBuildings = importedBuildings;
+            if (newCustomTenantNames.length > 0) customTenantNames = newCustomTenantNames;
+            if (newCustomAddresses.length > 0) customAddresses = newCustomAddresses;
+
+            saveData();
+            renderAll();
+            showToast(`Data imported successfully from Excel! Loaded ${tenants.length} tenants and ${readings.length} readings.`, 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Failed to parse Excel file: ' + (error.message || error), 'error');
+        }
+        // Reset file input
+        importExcelFileInput.value = '';
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 function updateEditButtonsState() {
