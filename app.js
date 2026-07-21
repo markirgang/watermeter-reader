@@ -1903,6 +1903,7 @@ async function exportToExcel(source = 'takeoff') {
         const dateStr = `${yyyy}-${mm}-${dd}`;
         const fileName = `WaterMeterReadings_${dateStr}.xlsx`;
 
+        let saved = false;
         if (window.showSaveFilePicker) {
             try {
                 const handle = await window.showSaveFilePicker({
@@ -1920,15 +1921,18 @@ async function exportToExcel(source = 'takeoff') {
                 await writable.write(u8arr);
                 await writable.close();
                 showToast(`Excel workbook exported successfully: ${fileName}`, 'success');
+                saved = true;
             } catch (err) {
                 if (err.name === 'AbortError') {
                     showToast('Export cancelled by user.', 'info');
                     return;
                 }
-                throw err;
+                console.warn('File System Access API failed or is restricted. Falling back to standard download method.', err);
             }
-        } else {
-            // Fallback for browsers that don't support showSaveFilePicker
+        }
+
+        if (!saved) {
+            // Fallback for browsers that don't support showSaveFilePicker or if it fails/is restricted
             XLSX.writeFile(wb, fileName);
             showToast(`Excel workbook exported successfully: ${fileName}`, 'success');
         }
