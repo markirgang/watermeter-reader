@@ -2571,7 +2571,7 @@ function recalculateTenantHistory(tenantId) {
     tenantReadings.forEach(reading => {
         reading.prevReading = prevReading;
         reading.consumed = reading.currReading - prevReading;
-        reading.cost = reading.consumed * (reading.rate || tenant.rate);
+        reading.cost = reading.consumed * (reading.rate !== undefined ? reading.rate : tenant.rate);
         
         prevReading = reading.currReading;
         prevDate = reading.date;
