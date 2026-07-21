@@ -2611,7 +2611,19 @@ function openModal(mode) {
         setTimeout(() => document.getElementById('unitAddress1').focus(), 100);
     } else if (mode === 'editAddress') {
         const selectedVal = tenantAddressInput.value;
-        const a = customAddresses.find(item => formatUnitAddress(item) === selectedVal) || { address1: selectedVal };
+        const found = customAddresses.find(item => 
+            (typeof item === 'string' && item === selectedVal) || 
+            (typeof item === 'object' && formatUnitAddress(item) === selectedVal)
+        );
+        
+        let a = { address1: selectedVal };
+        if (found) {
+            if (typeof found === 'string') {
+                a = { address1: found };
+            } else {
+                a = found;
+            }
+        }
         
         title = 'Edit Unit Address';
         icon = 'map-pin';
@@ -2961,14 +2973,30 @@ function handleModalSubmit(e) {
         
         let addressObj;
         if (modalMode === 'editAddress') {
-            const existing = customAddresses.find(a => formatUnitAddress(a) === selectedVal);
+            const existing = customAddresses.find(a => 
+                (typeof a === 'string' && a === selectedVal) || 
+                (typeof a === 'object' && formatUnitAddress(a) === selectedVal)
+            );
             if (existing) {
-                addressObj = existing;
-                addressObj.address1 = address1;
-                addressObj.premises = premises;
-                addressObj.contact = contact;
-                addressObj.email = email;
-                addressObj.storeNumber = storeNumber;
+                if (typeof existing === 'string') {
+                    const idx = customAddresses.indexOf(existing);
+                    addressObj = {
+                        id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        address1, premises, contact, email, storeNumber
+                    };
+                    if (idx !== -1) {
+                        customAddresses[idx] = addressObj;
+                    } else {
+                        customAddresses.push(addressObj);
+                    }
+                } else {
+                    addressObj = existing;
+                    addressObj.address1 = address1;
+                    addressObj.premises = premises;
+                    addressObj.contact = contact;
+                    addressObj.email = email;
+                    addressObj.storeNumber = storeNumber;
+                }
             } else {
                 addressObj = {
                     id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
