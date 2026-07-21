@@ -746,7 +746,7 @@ function handleTenantSubmit(e) {
     // Check for duplicate submeter ID
     const isDuplicate = tenants.some(t => (t.submeter || '').toString().toLowerCase() === submeter.toLowerCase() && t.id !== id);
     if (isDuplicate) {
-        showToast(`Submeter ID "${submeter}" is already assigned to another tenant.`, 'error');
+        showToast('Use the edit button as the tenant with this water meter number already exists.', 'error');
         return;
     }
 
@@ -1743,7 +1743,7 @@ function renderTakeoff() {
 }
 
 // --- EXCEL GENERATION ENGINE ---
-function exportToExcel() {
+async function exportToExcel() {
     if (tenants.length === 0) {
         showToast('No tenant data available to export.', 'error');
         return;
@@ -1880,10 +1880,42 @@ function exportToExcel() {
         XLSX.book_append_sheet(wb, wsHistory, 'All Reading Logs');
 
         // Write workbook to file and trigger browser download
-        const fileName = `WaterMeter_Takeoff_${start}_to_${end}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        const fileName = `WaterMeterReadings_${dateStr}.xlsx`;
 
-        showToast(`Excel workbook exported successfully: ${fileName}`, 'success');
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileName,
+                    startIn: 'desktop',
+                    types: [{
+                        description: 'Excel Workbook',
+                        accept: {
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+                        }
+                    }]
+                });
+                const writable = await handle.createWritable();
+                const u8arr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                await writable.write(u8arr);
+                await writable.close();
+                showToast(`Excel workbook exported successfully: ${fileName}`, 'success');
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    showToast('Export cancelled by user.', 'info');
+                    return;
+                }
+                throw err;
+            }
+        } else {
+            // Fallback for browsers that don't support showSaveFilePicker
+            XLSX.writeFile(wb, fileName);
+            showToast(`Excel workbook exported successfully: ${fileName}`, 'success');
+        }
     } catch (error) {
         console.error(error);
         showToast('Failed to export Excel file.', 'error');
