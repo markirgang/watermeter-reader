@@ -306,6 +306,20 @@ function migrateBuildingsData() {
         return normalized;
     });
 
+    // Deduplicate tenants by ID
+    const seenTenantIds = new Set();
+    tenants = tenants.filter(t => {
+        const tId = t.id || t.ID || t.Id;
+        if (!tId) return false;
+        const normId = tId.toString().trim().toLowerCase();
+        if (seenTenantIds.has(normId)) {
+            updated = true;
+            return false;
+        }
+        seenTenantIds.add(normId);
+        return true;
+    });
+
     // Normalize case-insensitive property keys for readings
     readings = readings.map(r => {
         const normalized = { ...r };
@@ -356,6 +370,20 @@ function migrateBuildingsData() {
         }
 
         return normalized;
+    });
+
+    // Deduplicate readings by ID
+    const seenReadingIds = new Set();
+    readings = readings.filter(r => {
+        const rId = r.id || r.ID || r.Id;
+        if (!rId) return false;
+        const normId = rId.toString().trim().toLowerCase();
+        if (seenReadingIds.has(normId)) {
+            updated = true;
+            return false;
+        }
+        seenReadingIds.add(normId);
+        return true;
     });
 
     // Migrate building addresses to building IDs with robust matching
@@ -496,6 +524,7 @@ function setupEventListeners() {
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
+    const deleteAddressBtn = document.getElementById('deleteAddressBtn');
 
     if (editBuildingBtn) {
         editBuildingBtn.addEventListener('click', () => openModal('editBuilding'));
@@ -512,6 +541,9 @@ function setupEventListeners() {
     }
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.addEventListener('click', deleteTenantName);
+    }
+    if (deleteAddressBtn) {
+        deleteAddressBtn.addEventListener('click', deleteAddress);
     }
 
     
@@ -550,25 +582,18 @@ function setupEventListeners() {
         if (selectedName) {
             const existingTenant = tenants.find(t => t.name === selectedName && t.buildingId === currentBuildingId);
             if (existingTenant) {
-
-                tenantAddressInput.value = existingTenant.address || '';
-                tenantSubmeterInput.value = existingTenant.submeter || '';
-                tenantUnitSelect.value = existingTenant.unitType || 'cf';
-                tenantRateInput.value = existingTenant.rate || '';
-                tenantInitialReadingInput.value = existingTenant.initialReading || 0;
-                
-                if (tenantInitialDatePicker) {
-                    tenantInitialDatePicker.setDate(existingTenant.initialDate);
-                } else {
-                    tenantInitialDateInput.value = existingTenant.initialDate;
-                }
-                
-                renderTenants();
-                showToast(`Auto-populated details for "${selectedName}".`, 'info');
+                editTenant(existingTenant.id);
+                showToast(`Loaded details for "${selectedName}" in Edit Mode.`, 'info');
             } else {
                 // If not found in this building, check customTenantNames for the template
                 const tenantObj = customTenantNames.find(t => (typeof t === 'string' ? t : t.name) === selectedName);
                 if (tenantObj && typeof tenantObj === 'object') {
+                    // Reset editing state since this is a new tenant for this building
+                    editingTenantId = null;
+                    tenantIdInput.value = '';
+                    tenantFormTitle.innerHTML = `<i data-lucide="user-plus"></i> Building and Tenant Select`;
+                    saveTenantBtn.innerHTML = `<i data-lucide="save"></i> Save Tenant`;
+                    cancelEditTenantBtn.style.display = 'none';
 
                     tenantAddressInput.value = tenantObj.address || '';
                     tenantSubmeterInput.value = tenantObj.submeter || generateSubmeterId(tenantObj.address) || '';
@@ -578,6 +603,8 @@ function setupEventListeners() {
                     showToast(`Auto-populated profile details for "${selectedName}".`, 'info');
                 }
             }
+        } else {
+            resetTenantForm(true);
         }
         updateEditButtonsState();
     });
@@ -765,6 +792,18 @@ function handleTenantSubmit(e) {
     const isDuplicate = tenants.some(t => (t.submeter || '').toString().toLowerCase() === submeter.toLowerCase() && t.id !== id);
     if (isDuplicate) {
         showToast('Use the edit button as the tenant with this water meter number already exists.', 'error');
+        return;
+    }
+
+    // Check for duplicate tenant name in the same building
+    const isNameDuplicate = tenants.some(t => 
+        t.name.trim().toLowerCase() === name.toLowerCase() && 
+        t.buildingId === buildingId && 
+        t.id !== id && 
+        t.id !== editingTenantId
+    );
+    if (isNameDuplicate) {
+        showToast(`A tenant named "${name}" already exists in this property. Please use a unique name or edit the existing tenant.`, 'error');
         return;
     }
 
@@ -1119,7 +1158,13 @@ function populateTenantDropdown(selectedBuildingId) {
     const filteredTenants = tenants.filter(t => t.buildingId && t.buildingId.toString().trim().toLowerCase() === normBuildingId);
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
     
+    const seenIds = new Set();
     sortedTenants.forEach(tenant => {
+        if (!tenant.id) return;
+        const normId = tenant.id.toString().trim().toLowerCase();
+        if (seenIds.has(normId)) return;
+        seenIds.add(normId);
+        
         const option = document.createElement('option');
         option.value = tenant.id;
         option.textContent = `${tenant.name} (${tenant.submeter})`;
@@ -1520,7 +1565,13 @@ function updateReadingTenantFilter() {
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true, sensitivity: 'base'}));
 
     readingTenantFilter.innerHTML = '<option value="">All Tenants</option>';
+    const seenIds = new Set();
     sortedTenants.forEach(t => {
+        if (!t.id) return;
+        const normId = t.id.toString().trim().toLowerCase();
+        if (seenIds.has(normId)) return;
+        seenIds.add(normId);
+        
         const option = document.createElement('option');
         option.value = t.id;
         option.textContent = `${t.name} (${t.submeter})`;
@@ -1604,7 +1655,13 @@ function updateTakeoffTenantFilter() {
     const sortedTenants = [...filteredTenants].sort((a, b) => a.name.localeCompare(b.name));
 
     takeoffTenantFilter.innerHTML = '<option value="">All Tenants</option>';
+    const seenIds = new Set();
     sortedTenants.forEach(tenant => {
+        if (!tenant.id) return;
+        const normId = tenant.id.toString().trim().toLowerCase();
+        if (seenIds.has(normId)) return;
+        seenIds.add(normId);
+        
         const option = document.createElement('option');
         option.value = tenant.id;
         option.textContent = `${tenant.name} (${tenant.submeter})`;
@@ -2163,13 +2220,14 @@ function handleImportExcel(e) {
             importedTenants.forEach(t => {
                 if (t.address && !seenAddresses.has(t.address)) {
                     seenAddresses.add(t.address);
+                    const parsed = parseUnitAddress(t.address);
                     newCustomAddresses.push({
                         id: 'address_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                        address1: t.address,
-                        premises: '',
-                        contact: '',
-                        email: '',
-                        storeNumber: ''
+                        address1: parsed.address1,
+                        premises: parsed.premises,
+                        contact: parsed.contact,
+                        email: parsed.email,
+                        storeNumber: parsed.storeNumber
                     });
                 }
             });
@@ -2201,6 +2259,7 @@ function updateEditButtonsState() {
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
+    const deleteAddressBtn = document.getElementById('deleteAddressBtn');
     
     if (editBuildingBtn) {
         editBuildingBtn.disabled = !tenantBuildingInput.value;
@@ -2217,6 +2276,9 @@ function updateEditButtonsState() {
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.disabled = !tenantNameInput.value;
     }
+    if (deleteAddressBtn) {
+        deleteAddressBtn.disabled = !tenantAddressInput.value;
+    }
 }
 
 function formatBuildingAddress(b) {
@@ -2229,6 +2291,29 @@ function formatUnitAddress(a) {
     if (!a) return '';
     if (typeof a === 'string') return a;
     return `${a.address1} (Store: ${a.storeNumber}, Premises: ${a.premises}, Contact: ${a.contact}, Email: ${a.email})`;
+}
+
+function parseUnitAddress(str) {
+    if (!str || typeof str !== 'string') {
+        return { address1: '', premises: '', contact: '', email: '', storeNumber: '' };
+    }
+    const match = str.match(/^([\s\S]+?)\s*\(Store:\s*([\s\S]*?),\s*Premises:\s*([\s\S]*?),\s*Contact:\s*([\s\S]*?),\s*Email:\s*([\s\S]*?)\)$/);
+    if (match) {
+        return {
+            address1: match[1].trim(),
+            storeNumber: match[2].trim(),
+            premises: match[3].trim(),
+            contact: match[4].trim(),
+            email: match[5].trim()
+        };
+    }
+    return {
+        address1: str.trim(),
+        premises: '',
+        contact: '',
+        email: '',
+        storeNumber: ''
+    };
 }
 
 function deleteBuilding() {
@@ -2320,6 +2405,55 @@ function deleteTenantName() {
         renderAll();
 
         showToast('Tenant name and associated data deleted successfully.', 'success');
+        if (autoSyncEnabled && syncUrl) {
+            syncWithCloud();
+        }
+    }
+}
+
+function deleteAddress() {
+    const selectedVal = tenantAddressInput.value;
+    if (!selectedVal) {
+        showToast('Please select a unit address to delete.', 'error');
+        return;
+    }
+
+    // Check if any active tenants are using this address
+    const hasActiveTenants = tenants.some(t => t.address === selectedVal);
+    let confirmMsg = `Are you sure you want to delete the address "${selectedVal}"?`;
+    if (hasActiveTenants) {
+        confirmMsg += `\n\nWARNING: Deleting this address will also delete all associated active tenants and their reading history!`;
+    }
+
+    if (confirm(confirmMsg)) {
+        if (hasActiveTenants) {
+            const tenantsToDelete = tenants.filter(t => t.address === selectedVal);
+            tenantsToDelete.forEach(t => {
+                // Register deletions for sync
+                const tenantReadingIds = readings.filter(r => r.tenantId === t.id).map(r => r.id);
+                registerDeletion(t.id);
+                tenantReadingIds.forEach(rid => registerDeletion(rid));
+                
+                // Remove readings
+                readings = readings.filter(r => r.tenantId !== t.id);
+            });
+            // Remove tenants
+            tenants = tenants.filter(t => t.address !== selectedVal);
+        }
+
+        // Delete from customAddresses
+        customAddresses = customAddresses.filter(a => {
+            if (!a) return false;
+            const addrStr = typeof a === 'string' ? a : formatUnitAddress(a);
+            return addrStr !== selectedVal;
+        });
+
+        saveData();
+        tenantAddressInput.value = '';
+        populateTenantFormDropdowns();
+        renderAll();
+
+        showToast('Unit address deleted successfully.', 'success');
         if (autoSyncEnabled && syncUrl) {
             syncWithCloud();
         }
@@ -2616,13 +2750,22 @@ function openModal(mode) {
             (typeof item === 'object' && formatUnitAddress(item) === selectedVal)
         );
         
-        let a = { address1: selectedVal };
-        if (found) {
-            if (typeof found === 'string') {
-                a = { address1: found };
-            } else {
-                a = found;
-            }
+        let a;
+        if (found && typeof found === 'object') {
+            a = { ...found };
+        } else {
+            const strVal = (typeof found === 'string') ? found : selectedVal;
+            a = parseUnitAddress(strVal);
+        }
+        
+        // Safeguard if a.address1 contains formatted detail values
+        if (a.address1 && a.address1.includes('Store:') && a.address1.includes('Premises:')) {
+            const parsed = parseUnitAddress(a.address1);
+            a.address1 = parsed.address1;
+            if (!a.premises) a.premises = parsed.premises;
+            if (!a.contact) a.contact = parsed.contact;
+            if (!a.email) a.email = parsed.email;
+            if (!a.storeNumber) a.storeNumber = parsed.storeNumber;
         }
         
         title = 'Edit Unit Address';
