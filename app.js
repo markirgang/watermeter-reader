@@ -5,8 +5,7 @@ let editingTenantId = null;
 let customBuildings = [];
 let customTenantNames = [];
 let customAddresses = [];
-let customCompanies = [];
-let modalMode = ''; // 'building', 'tenantName', 'address', 'company', 'syncSettings'
+let modalMode = ''; // 'building', 'tenantName', 'address', 'syncSettings'
 
 // Cloud Sync Settings
 let syncUrl = localStorage.getItem('aquameter_sync_url') || 'https://script.google.com/macros/s/AKfycbz_opCeoA-eC1otn6iU_VTZZLvNneEEx6ch64Fz4D4-gVpOFbpC6_ufckMDssWwqzja/exec';
@@ -30,7 +29,7 @@ const tenantUnitSelect = document.getElementById('tenantUnit');
 const tenantRateInput = document.getElementById('tenantRate');
 const tenantInitialReadingInput = document.getElementById('tenantInitialReading');
 const tenantInitialDateInput = document.getElementById('tenantInitialDate');
-const tenantCompanyInput = document.getElementById('tenantCompany');
+
 const saveTenantBtn = document.getElementById('saveTenantBtn');
 const cancelEditTenantBtn = document.getElementById('cancelEditTenantBtn');
 const tenantTableBody = document.getElementById('tenantTableBody');
@@ -179,14 +178,12 @@ function loadData() {
         const storedCustomBuildings = localStorage.getItem('aquameter_custom_buildings');
         const storedCustomTenantNames = localStorage.getItem('aquameter_custom_tenant_names');
         const storedCustomAddresses = localStorage.getItem('aquameter_custom_addresses');
-        const storedCustomCompanies = localStorage.getItem('aquameter_custom_companies');
         
         tenants = storedTenants ? JSON.parse(storedTenants) : [];
         readings = storedReadings ? JSON.parse(storedReadings) : [];
         customBuildings = storedCustomBuildings ? JSON.parse(storedCustomBuildings) : [];
         customTenantNames = storedCustomTenantNames ? JSON.parse(storedCustomTenantNames) : [];
         customAddresses = storedCustomAddresses ? JSON.parse(storedCustomAddresses) : [];
-        customCompanies = storedCustomCompanies ? JSON.parse(storedCustomCompanies) : [];
         
         // Run data migration for building IDs
         migrateBuildingsData();
@@ -197,7 +194,6 @@ function loadData() {
         customBuildings = [];
         customTenantNames = [];
         customAddresses = [];
-        customCompanies = [];
     }
 }
 
@@ -392,7 +388,6 @@ function migrateBuildingsData() {
                 if (matchingTenant) {
                     return {
                         name: n,
-                        company: matchingTenant.company || '',
                         address: matchingTenant.address || '',
                         submeter: matchingTenant.submeter || '',
                         unitType: matchingTenant.unitType || 'cf',
@@ -402,7 +397,6 @@ function migrateBuildingsData() {
                 } else {
                     return {
                         name: n,
-                        company: '',
                         address: '',
                         submeter: '',
                         unitType: 'cf',
@@ -427,7 +421,6 @@ function saveData() {
         localStorage.setItem('aquameter_custom_buildings', JSON.stringify(customBuildings));
         localStorage.setItem('aquameter_custom_tenant_names', JSON.stringify(customTenantNames));
         localStorage.setItem('aquameter_custom_addresses', JSON.stringify(customAddresses));
-        localStorage.setItem('aquameter_custom_companies', JSON.stringify(customCompanies));
     } catch (e) {
         showToast('Storage limit exceeded! Could not save data.', 'error');
     }
@@ -491,19 +484,14 @@ function setupEventListeners() {
     addTenantBtn.addEventListener('click', () => openModal('tenantName'));
     addAddressBtn.addEventListener('click', () => openModal('address'));
     
-    const addCompanyBtn = document.getElementById('addCompanyBtn');
-    if (addCompanyBtn) {
-        addCompanyBtn.addEventListener('click', () => openModal('company'));
-    }
+
 
     const editBuildingBtn = document.getElementById('editBuildingBtn');
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
     const editAddressBtn = document.getElementById('editAddressBtn');
-    const editCompanyBtn = document.getElementById('editCompanyBtn');
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
-    const deleteCompanyBtn = document.getElementById('deleteCompanyBtn');
 
     if (editBuildingBtn) {
         editBuildingBtn.addEventListener('click', () => openModal('editBuilding'));
@@ -514,18 +502,14 @@ function setupEventListeners() {
     if (editAddressBtn) {
         editAddressBtn.addEventListener('click', () => openModal('editAddress'));
     }
-    if (editCompanyBtn) {
-        editCompanyBtn.addEventListener('click', () => openModal('editCompany'));
-    }
+
     if (deleteBuildingBtn) {
         deleteBuildingBtn.addEventListener('click', deleteBuilding);
     }
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.addEventListener('click', deleteTenantName);
     }
-    if (deleteCompanyBtn) {
-        deleteCompanyBtn.addEventListener('click', deleteCompany);
-    }
+
     
     closeModalBtn.addEventListener('click', closeModal);
     cancelModalBtn.addEventListener('click', closeModal);
@@ -547,9 +531,7 @@ function setupEventListeners() {
         updateEditButtonsState();
     });
 
-    tenantCompanyInput.addEventListener('change', () => {
-        updateEditButtonsState();
-    });
+
 
     // Building filter for tenant form
     tenantBuildingInput.addEventListener('change', () => {
@@ -564,7 +546,7 @@ function setupEventListeners() {
         if (selectedName) {
             const existingTenant = tenants.find(t => t.name === selectedName && t.buildingId === currentBuildingId);
             if (existingTenant) {
-                tenantCompanyInput.value = existingTenant.company || '';
+
                 tenantAddressInput.value = existingTenant.address || '';
                 tenantSubmeterInput.value = existingTenant.submeter || '';
                 tenantUnitSelect.value = existingTenant.unitType || 'cf';
@@ -583,7 +565,7 @@ function setupEventListeners() {
                 // If not found in this building, check customTenantNames for the template
                 const tenantObj = customTenantNames.find(t => (typeof t === 'string' ? t : t.name) === selectedName);
                 if (tenantObj && typeof tenantObj === 'object') {
-                    tenantCompanyInput.value = tenantObj.company || '';
+
                     tenantAddressInput.value = tenantObj.address || '';
                     tenantSubmeterInput.value = tenantObj.submeter || generateSubmeterId(tenantObj.address) || '';
                     tenantUnitSelect.value = tenantObj.unitType || 'cf';
@@ -749,7 +731,7 @@ function handleTenantSubmit(e) {
     const buildingObj = findBuildingById(buildingId);
     const building = buildingObj ? formatBuildingAddress(buildingObj) : '';
     const name = tenantNameInput.value.trim();
-    const company = tenantCompanyInput.value.trim();
+
     const address = tenantAddressInput.value.trim();
     let submeter = tenantSubmeterInput.value.trim();
     const unitType = tenantUnitSelect.value;
@@ -794,7 +776,7 @@ function handleTenantSubmit(e) {
                 buildingId,
                 building,
                 name,
-                company,
+
                 address,
                 submeter,
                 unitType,
@@ -817,7 +799,7 @@ function handleTenantSubmit(e) {
             buildingId,
             building,
             name,
-            company,
+
             address,
             submeter,
             unitType,
@@ -835,7 +817,7 @@ function handleTenantSubmit(e) {
     // Update/add in customTenantNames to keep profile metadata linked
     const tData = {
         name: name,
-        company: company,
+
         address: address,
         submeter: submeter,
         unitType: unitType,
@@ -866,7 +848,7 @@ function editTenant(id) {
     tenantIdInput.value = tenant.id;
     tenantBuildingInput.value = tenant.buildingId || '';
     tenantNameInput.value = tenant.name;
-    tenantCompanyInput.value = tenant.company || '';
+
     tenantAddressInput.value = tenant.address;
     tenantSubmeterInput.value = tenant.submeter;
     tenantUnitSelect.value = tenant.unitType;
@@ -992,12 +974,10 @@ function renderTenants() {
         
         // Search filter matching
         const tName = (t.name || '').toString().toLowerCase();
-        const tCompany = (t.company || '').toString().toLowerCase();
         const tSubmeter = (t.submeter || '').toString().toLowerCase();
         const tAddress = (t.address || '').toString().toLowerCase();
         
         return tName.includes(filter) || 
-               tCompany.includes(filter) ||
                tSubmeter.includes(filter) ||
                tAddress.includes(filter);
     });
@@ -1007,7 +987,7 @@ function renderTenants() {
     if (filteredTenants.length === 0) {
         tenantTableBody.innerHTML = `
             <tr>
-                <td colspan="12">
+                <td colspan="11">
                     <div class="empty-state" style="text-align: center; padding: 2.5rem 1.5rem;">
                         <i data-lucide="users" style="width: 48px; height: 48px; margin: 0 auto 1rem auto; display: block; color: var(--text-muted); opacity: 0.5;"></i>
                         <p style="color: var(--text-muted); font-size: 0.95rem;">${tenants.length === 0 ? 'No tenants registered yet. Add one using the form on the left!' : 'No matching tenants found.'}</p>
@@ -1024,7 +1004,6 @@ function renderTenants() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
-            <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.company || '-')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.address)}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
@@ -1685,7 +1664,7 @@ function renderTakeoff() {
     if (filteredTenants.length === 0) {
         takeoffTableBody.innerHTML = `
             <tr>
-                <td colspan="12">
+                <td colspan="11">
                     <div class="empty-state">
                         <i data-lucide="calculator" style="width: 48px; height: 48px;"></i>
                         <p>No tenants found matching the active filters.</p>
@@ -1744,7 +1723,6 @@ function renderTakeoff() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong style="color: var(--text-primary);">${escapeHTML(tenant.name)}</strong></td>
-            <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHTML(tenant.company || '-')}</span></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">${escapeHTML(tenant.building || 'N/A')}</span></td>
             <td><code>${escapeHTML(tenant.submeter)}</code></td>
             <td><span style="font-size: 0.85rem; color: var(--text-secondary);">${dateRangeText}</span></td>
@@ -1822,7 +1800,6 @@ function exportToExcel() {
 
             takeoffData.push({
                 'Store Name': tenant.name,
-                'Company': tenant.company || '',
                 'Building': tenant.building || 'N/A',
                 'Submeter ID': tenant.submeter,
                 'Unit Type': tenant.unitType.toUpperCase(),
@@ -1840,7 +1817,6 @@ function exportToExcel() {
         // --- 2. TENANT DIRECTORY SHEET DATA ---
         const directoryData = filteredTenants.map(t => ({
             'Store Name': t.name,
-            'Company': t.company || '',
             'Building': t.building || 'N/A',
             'Unit Address': t.address,
             'Submeter ID': t.submeter,
@@ -1859,7 +1835,6 @@ function exportToExcel() {
                 return {
                     'Reading Date': r.date,
                     'Store Name': tenant ? tenant.name : 'Unknown',
-                    'Company': tenant ? (tenant.company || '') : '',
                     'Submeter ID': tenant ? tenant.submeter : 'N/A',
                     'Unit Type': r.unitType.toUpperCase(),
                     'Previous Reading': r.prevReading,
@@ -1928,8 +1903,7 @@ function handleExportBackup() {
             readings,
             customBuildings: customBuildings || [],
             customTenantNames: customTenantNames || [],
-            customAddresses: customAddresses || [],
-            customCompanies: customCompanies || []
+            customAddresses: customAddresses || []
         }, null, 2);
         const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
         
@@ -1962,7 +1936,6 @@ function handleImportBackup(e) {
                 if (Array.isArray(importedData.customBuildings)) customBuildings = importedData.customBuildings;
                 if (Array.isArray(importedData.customTenantNames)) customTenantNames = importedData.customTenantNames;
                 if (Array.isArray(importedData.customAddresses)) customAddresses = importedData.customAddresses;
-                if (Array.isArray(importedData.customCompanies)) customCompanies = importedData.customCompanies;
                 
                 // Run migration to normalize / upgrade structures
                 migrateBuildingsData();
@@ -1986,11 +1959,9 @@ function updateEditButtonsState() {
     const editBuildingBtn = document.getElementById('editBuildingBtn');
     const editTenantNameBtn = document.getElementById('editTenantNameBtn');
     const editAddressBtn = document.getElementById('editAddressBtn');
-    const editCompanyBtn = document.getElementById('editCompanyBtn');
     
     const deleteBuildingBtn = document.getElementById('deleteBuildingBtn');
     const deleteTenantNameBtn = document.getElementById('deleteTenantNameBtn');
-    const deleteCompanyBtn = document.getElementById('deleteCompanyBtn');
     
     if (editBuildingBtn) {
         editBuildingBtn.disabled = !tenantBuildingInput.value;
@@ -2001,17 +1972,11 @@ function updateEditButtonsState() {
     if (editAddressBtn) {
         editAddressBtn.disabled = !tenantAddressInput.value;
     }
-    if (editCompanyBtn) {
-        editCompanyBtn.disabled = !tenantCompanyInput.value;
-    }
     if (deleteBuildingBtn) {
         deleteBuildingBtn.disabled = !tenantBuildingInput.value;
     }
     if (deleteTenantNameBtn) {
         deleteTenantNameBtn.disabled = !tenantNameInput.value;
-    }
-    if (deleteCompanyBtn) {
-        deleteCompanyBtn.disabled = !tenantCompanyInput.value;
     }
 }
 
@@ -2076,49 +2041,7 @@ function deleteBuilding() {
     }
 }
 
-function deleteCompany() {
-    const selectedCompany = tenantCompanyInput.value;
-    if (!selectedCompany) {
-        showToast('Please select a company to delete.', 'error');
-        return;
-    }
 
-    const hasActiveTenants = tenants.some(t => t.company === selectedCompany);
-    let confirmMsg = `Are you sure you want to delete the company "${selectedCompany}" from the list?`;
-    if (hasActiveTenants) {
-        confirmMsg += `\n\nNote: Any tenants using this company will have their company field cleared.`;
-    }
-
-    if (confirm(confirmMsg)) {
-        // Clear company from active tenants
-        tenants.forEach(t => {
-            if (t.company === selectedCompany) {
-                t.company = '';
-                t.synced = false;
-            }
-        });
-
-        // Clear company from customTenantNames
-        customTenantNames.forEach(t => {
-            if (t.company === selectedCompany) {
-                t.company = '';
-            }
-        });
-
-        // Delete from customCompanies
-        customCompanies = customCompanies.filter(c => c !== selectedCompany);
-
-        saveData();
-        tenantCompanyInput.value = '';
-        populateTenantFormDropdowns();
-        renderAll();
-
-        showToast('Company deleted successfully.', 'success');
-        if (autoSyncEnabled && syncUrl) {
-            syncWithCloud();
-        }
-    }
-}
 
 function deleteTenantName() {
     const selectedName = tenantNameInput.value;
@@ -2191,14 +2114,12 @@ function populateTenantFormDropdowns() {
     
     const namesSet = new Set();
     const addressesSet = new Set();
-    const companiesSet = new Set();
 
     // Filter store names, addresses, and companies by the currently selected building ID, if any
     tenants.forEach(t => {
         if (!selectedBuildingId || t.buildingId === selectedBuildingId) {
             if (t.name) namesSet.add(t.name);
             if (t.address) addressesSet.add(t.address);
-            if (t.company) companiesSet.add(t.company);
         }
     });
 
@@ -2227,21 +2148,10 @@ function populateTenantFormDropdowns() {
         }
         addressesSet.add(addrStr);
     });
-    customCompanies.forEach(c => {
-        if (!c) return;
-        if (selectedBuildingId) {
-            const assignedToThisBuilding = tenants.some(t => t.company === c && t.buildingId === selectedBuildingId);
-            const assignedToOtherBuildings = tenants.some(t => t.company === c && t.buildingId !== selectedBuildingId);
-            if (assignedToOtherBuildings && !assignedToThisBuilding) {
-                return;
-            }
-        }
-        companiesSet.add(c);
-    });
+
 
     const sortedNames = Array.from(namesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
     const sortedAddresses = Array.from(addressesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-    const sortedCompanies = Array.from(companiesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
 
     const updateSelect = (selectEl, optionsList, defaultText, isOptional = false) => {
         const currentValue = selectEl.value;
@@ -2280,7 +2190,6 @@ function populateTenantFormDropdowns() {
 
     updateBuildingSelect(tenantBuildingInput, sortedBuildings, 'Select Property...');
     updateSelect(tenantNameInput, sortedNames, 'Select Store...');
-    updateSelect(tenantCompanyInput, sortedCompanies, 'Select Company...', true);
     updateSelect(tenantAddressInput, sortedAddresses, 'Select Address...');
     updateEditButtonsState();
 }
@@ -2294,27 +2203,7 @@ function setRequiredForGroup(groupId, isRequired) {
     });
 }
 
-function populateModalCompanyDropdown() {
-    const companiesSet = new Set();
-    tenants.forEach(t => {
-        if (t.company) companiesSet.add(t.company);
-    });
-    customCompanies.forEach(c => {
-        if (c) companiesSet.add(c);
-    });
-    const sortedCompanies = Array.from(companiesSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-    
-    const modalTenantCompanySelect = document.getElementById('modalTenantCompany');
-    if (modalTenantCompanySelect) {
-        modalTenantCompanySelect.innerHTML = '<option value="">Select Company...</option>';
-        sortedCompanies.forEach(comp => {
-            const option = document.createElement('option');
-            option.value = comp;
-            option.textContent = comp;
-            modalTenantCompanySelect.appendChild(option);
-        });
-    }
-}
+
 
 function openModal(mode) {
     modalMode = mode;
@@ -2323,13 +2212,11 @@ function openModal(mode) {
     document.getElementById('tenantNameModalFields').style.display = 'none';
     document.getElementById('buildingModalFields').style.display = 'none';
     document.getElementById('unitAddressModalFields').style.display = 'none';
-    document.getElementById('companyModalFields').style.display = 'none';
     
     // Unset required attribute for all groups
     setRequiredForGroup('tenantNameModalFields', false);
     setRequiredForGroup('buildingModalFields', false);
     setRequiredForGroup('unitAddressModalFields', false);
-    setRequiredForGroup('companyModalFields', false);
     
     let title = '';
     let icon = '';
@@ -2374,8 +2261,7 @@ function openModal(mode) {
         document.getElementById('tenantNameModalFields').style.display = 'block';
         setRequiredForGroup('tenantNameModalFields', true);
         
-        // Company & Submeter are optional
-        document.getElementById('modalTenantCompany').required = false;
+        // Submeter is optional
         document.getElementById('modalTenantSubmeter').required = false;
         
         // Populate Address Dropdown in modal
@@ -2403,11 +2289,10 @@ function openModal(mode) {
             }
         };
         populateModalAddressDropdown();
-        populateModalCompanyDropdown();
 
         // Clear values
         document.getElementById('modalTenantNameValue').value = '';
-        document.getElementById('modalTenantCompany').value = '';
+
         document.getElementById('modalTenantAddress').value = '';
         document.getElementById('modalTenantSubmeter').value = '';
         document.getElementById('modalTenantUnit').value = 'cf';
@@ -2424,8 +2309,7 @@ function openModal(mode) {
         document.getElementById('tenantNameModalFields').style.display = 'block';
         setRequiredForGroup('tenantNameModalFields', true);
         
-        // Company & Submeter are optional
-        document.getElementById('modalTenantCompany').required = false;
+        // Submeter is optional
         document.getElementById('modalTenantSubmeter').required = false;
         
         // Populate Address Dropdown in modal
@@ -2453,18 +2337,17 @@ function openModal(mode) {
             }
         };
         populateModalAddressDropdown();
-        populateModalCompanyDropdown();
 
         document.getElementById('modalTenantNameValue').value = selectedVal || '';
         if (tenantObj && typeof tenantObj === 'object') {
-            document.getElementById('modalTenantCompany').value = tenantObj.company || '';
+
             document.getElementById('modalTenantAddress').value = tenantObj.address || '';
             document.getElementById('modalTenantSubmeter').value = tenantObj.submeter || '';
             document.getElementById('modalTenantUnit').value = tenantObj.unitType || 'cf';
             document.getElementById('modalTenantRate').value = tenantObj.rate !== undefined ? tenantObj.rate : '';
             document.getElementById('modalTenantInitialReading').value = tenantObj.initialReading !== undefined ? tenantObj.initialReading : '0';
         } else {
-            document.getElementById('modalTenantCompany').value = '';
+
             document.getElementById('modalTenantAddress').value = '';
             document.getElementById('modalTenantSubmeter').value = '';
             document.getElementById('modalTenantUnit').value = 'cf';
@@ -2503,25 +2386,7 @@ function openModal(mode) {
         document.getElementById('unitStoreNumber').value = a.storeNumber || '';
         
         setTimeout(() => document.getElementById('unitAddress1').focus(), 100);
-    } else if (mode === 'company') {
-        title = 'Add Company';
-        icon = 'briefcase';
-        document.getElementById('companyModalFields').style.display = 'block';
-        setRequiredForGroup('companyModalFields', true);
-        
-        document.getElementById('companyNameValue').value = '';
-        setTimeout(() => document.getElementById('companyNameValue').focus(), 100);
-    } else if (mode === 'editCompany') {
-        const selectedVal = tenantCompanyInput.value;
-        
-        title = 'Edit Company';
-        icon = 'briefcase';
-        document.getElementById('companyModalFields').style.display = 'block';
-        setRequiredForGroup('companyModalFields', true);
-        
-        document.getElementById('companyNameValue').value = selectedVal || '';
-        setTimeout(() => document.getElementById('companyNameValue').focus(), 100);
-    }
+
     
     modalTitle.innerHTML = `<i data-lucide="${icon}"></i> ${title}`;
     addOptionModal.classList.add('active');
@@ -2537,7 +2402,6 @@ function closeModal() {
     
     // Clear all fields
     document.getElementById('modalTenantNameValue').value = '';
-    document.getElementById('modalTenantCompany').value = '';
     document.getElementById('modalTenantAddress').value = '';
     document.getElementById('modalTenantSubmeter').value = '';
     document.getElementById('modalTenantUnit').value = 'cf';
@@ -2787,7 +2651,6 @@ function handleModalSubmit(e) {
         const value = document.getElementById('modalTenantNameValue').value.trim();
         if (!value) return;
         
-        const companyVal = document.getElementById('modalTenantCompany').value.trim();
         const addressVal = document.getElementById('modalTenantAddress').value;
         const submeterVal = document.getElementById('modalTenantSubmeter').value.trim();
         const unitTypeVal = document.getElementById('modalTenantUnit').value;
@@ -2796,7 +2659,6 @@ function handleModalSubmit(e) {
 
         const tenantData = {
             name: value,
-            company: companyVal,
             address: addressVal,
             submeter: submeterVal,
             unitType: unitTypeVal,
@@ -2818,7 +2680,6 @@ function handleModalSubmit(e) {
             tenants.forEach(t => {
                 if (t.name === oldName || t.name === value) {
                     t.name = value;
-                    t.company = companyVal;
                     t.address = addressVal;
                     t.submeter = submeterVal || generateSubmeterId(addressVal);
                     t.unitType = unitTypeVal;
@@ -2841,7 +2702,6 @@ function handleModalSubmit(e) {
         tenantNameInput.value = value;
         
         // Auto-populate the main form immediately
-        tenantCompanyInput.value = companyVal;
         tenantAddressInput.value = addressVal;
         tenantSubmeterInput.value = submeterVal || generateSubmeterId(addressVal);
         tenantUnitSelect.value = unitTypeVal;
@@ -2904,47 +2764,7 @@ function handleModalSubmit(e) {
             tenantSubmeterInput.value = generateSubmeterId(formattedAddress);
         }
         updateEditButtonsState();
-    } else if (modalMode === 'company' || modalMode === 'editCompany') {
-        const companyName = document.getElementById('companyNameValue').value.trim();
-        if (!companyName) return;
 
-        const selectedVal = tenantCompanyInput.value;
-        const oldCompany = modalMode === 'editCompany' ? selectedVal : '';
-
-        if (modalMode === 'editCompany') {
-            const idx = customCompanies.indexOf(oldCompany);
-            if (idx !== -1) {
-                customCompanies[idx] = companyName;
-            } else if (!customCompanies.includes(companyName)) {
-                customCompanies.push(companyName);
-            }
-            
-            // Update tenants using old company
-            tenants.forEach(t => {
-                if (t.company === oldCompany) {
-                    t.company = companyName;
-                    t.synced = false;
-                }
-            });
-
-            // Update customTenantNames
-            customTenantNames.forEach(t => {
-                if (t.company === oldCompany) {
-                    t.company = companyName;
-                }
-            });
-        } else {
-            if (!customCompanies.includes(companyName)) {
-                customCompanies.push(companyName);
-            }
-        }
-
-        saveData();
-        populateTenantFormDropdowns();
-        tenantCompanyInput.value = companyName;
-        updateEditButtonsState();
-        showToast(modalMode === 'editCompany' ? 'Company updated successfully.' : `Company "${companyName}" added successfully.`, 'success');
-    }
     
     closeModal();
 }
