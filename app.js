@@ -1891,9 +1891,9 @@ async function exportToExcel(source = 'takeoff') {
         setWidths(wsHistory, historyData);
 
         // Append sheets to workbook
-        XLSX.book_append_sheet(wb, wsTakeoff, 'Billing Takeoff');
-        XLSX.book_append_sheet(wb, wsDirectory, 'Tenant Directory');
-        XLSX.book_append_sheet(wb, wsHistory, 'All Reading Logs');
+        XLSX.utils.book_append_sheet(wb, wsTakeoff, 'Billing Takeoff');
+        XLSX.utils.book_append_sheet(wb, wsDirectory, 'Tenant Directory');
+        XLSX.utils.book_append_sheet(wb, wsHistory, 'All Reading Logs');
 
         // Write workbook to file and trigger browser download
         const today = new Date();
