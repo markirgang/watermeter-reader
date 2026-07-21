@@ -2386,8 +2386,8 @@ function openModal(mode) {
         document.getElementById('unitStoreNumber').value = a.storeNumber || '';
         
         setTimeout(() => document.getElementById('unitAddress1').focus(), 100);
+    }
 
-    
     modalTitle.innerHTML = `<i data-lucide="${icon}"></i> ${title}`;
     addOptionModal.classList.add('active');
     addOptionModal.setAttribute('aria-hidden', 'false');
@@ -2764,7 +2764,7 @@ function handleModalSubmit(e) {
             tenantSubmeterInput.value = generateSubmeterId(formattedAddress);
         }
         updateEditButtonsState();
-
+    }
     
     closeModal();
 }
