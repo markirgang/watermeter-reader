@@ -1755,10 +1755,12 @@ async function exportToExcel() {
         const startDate = new Date(start);
         const endDate = new Date(end);
 
-        const selectedBuilding = takeoffBuildingFilter ? takeoffBuildingFilter.value : '';
-        const selectedTenantId = takeoffTenantFilter ? takeoffTenantFilter.value : '';
+        const readingBuildingFilter = document.getElementById('readingBuildingFilter');
+        const readingTenantFilter = document.getElementById('readingTenantFilter');
+        const selectedBuilding = readingBuildingFilter ? readingBuildingFilter.value : '';
+        const selectedTenantId = readingTenantFilter ? readingTenantFilter.value : '';
 
-        // Filter tenants based on active takeoff filters
+        // Filter tenants based on active reading filters
         const filteredTenants = tenants.filter(t => {
             const matchesBuilding = !selectedBuilding || t.buildingId === selectedBuilding;
             const matchesTenant = !selectedTenantId || t.id === selectedTenantId;
